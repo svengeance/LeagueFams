@@ -11,12 +11,20 @@ It currently supports:
 
 ## Getting Started
 
-This project has no build step and no backend.
+This project is a small static frontend with a Vite-powered dev server.
 
-1. Open [index.html](./index.html) in a browser.
-2. The page will automatically try to load bundled files from the [data](./data) directory.
-3. Upload additional JSON files if you want to append more games.
-4. Review the game cards and cumulative player stats table.
+1. Run `npm install`
+2. Run `npm run dev`
+3. Open the local URL Vite prints in the terminal
+4. The page will automatically try to load bundled files from the [data](./data) directory
+5. Upload additional JSON files if you want to append more games
+6. Review the game cards and cumulative player stats table
+
+## Scripts
+
+- `npm run dev`: Starts the local development server with live reload
+- `npm run build`: Creates a production build in `dist/`
+- `npm run preview`: Serves the production build locally
 
 ## Bundled Data
 

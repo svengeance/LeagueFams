@@ -6,30 +6,33 @@
   <title>LeagueFams Match Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
   <div class="page-shell">
-    <header class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Client-side match explorer</p>
-        <h1>League match data, turned into something you can actually scan.</h1>
-        <p class="hero-text">
-          Upload one or more JSON exports, browse each game at a glance, and compare cumulative player performance without any backend.
+    <header class="topbar">
+      <div class="topbar-brand">
+        <p class="eyebrow">LeagueFams</p>
+        <h1>Match archive and player stat command center.</h1>
+        <p class="topbar-text">
+          Bundled match history loads on arrival, and you can manually upload more JSON exports whenever you want to extend the board.
         </p>
       </div>
-      <div class="hero-panel">
-        <label class="upload-panel" for="fileInput" id="dropzone">
+
+      <div class="topbar-controls">
+        <label class="toolbar-upload" for="fileInput" id="dropzone">
           <input id="fileInput" type="file" accept=".json,application/json" multiple>
-          <span class="upload-title">Drop JSON files here</span>
-          <span class="upload-subtitle">or click to choose files from your computer</span>
+          <span class="upload-title">Manual upload</span>
+          <span class="upload-subtitle">Drop files here or browse for JSON exports</span>
         </label>
-        <div class="hero-actions">
+
+        <div class="toolbar-buttons">
           <button id="reloadBundledButton" class="button button-primary" type="button">Reload bundled data</button>
-          <button id="clearButton" class="button button-secondary" type="button">Clear all</button>
+          <button id="clearButton" class="button button-secondary" type="button">Clear table</button>
         </div>
-        <p class="helper-text" id="statusText">No files loaded yet.</p>
+
+        <p class="helper-text toolbar-status" id="statusText">No files loaded yet.</p>
       </div>
     </header>
 
@@ -39,21 +42,10 @@
       <section class="panel">
         <div class="section-heading">
           <div>
-            <p class="section-kicker">Games</p>
-            <h2>Match Cards</h2>
-          </div>
-          <p class="section-note">Each card shows the result, duration, and core K / D / A stats for every participant.</p>
-        </div>
-        <div id="gamesContainer" class="games-grid"></div>
-      </section>
-
-      <section class="panel">
-        <div class="section-heading">
-          <div>
             <p class="section-kicker">Cumulative</p>
             <h2>Player Totals & Averages</h2>
           </div>
-          <p class="section-note">Totals stack across all loaded files. Averages are shown per game played.</p>
+          <p class="section-note">Totals stack across everything loaded in-session, with per-game averages for quick comparison.</p>
         </div>
         <div class="table-wrap">
           <table class="stats-table">
@@ -75,6 +67,17 @@
             <tbody id="totalsTableBody"></tbody>
           </table>
         </div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Games</p>
+            <h2>Match Cards</h2>
+          </div>
+          <p class="section-note">Each card surfaces the match result, duration, and the core K / D / A line for every player in the file.</p>
+        </div>
+        <div id="gamesContainer" class="games-grid"></div>
       </section>
     </main>
   </div>

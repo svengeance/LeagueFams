@@ -1,0 +1,17 @@
+{
+  "name": "leaguefams",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "4.60.0"
+  }
+}

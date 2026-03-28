@@ -298,8 +298,6 @@ async function loadBundledGames() {
   const loadedGames = [];
   let index = 1;
 
-  setStatus("Loading bundled data from data/game{x}.json ...");
-
   while (true) {
     const relativeSource = `data/game${index}.json`;
     const sourceUrl = new URL(relativeSource, assetBaseUrl);
@@ -315,6 +313,14 @@ async function loadBundledGames() {
         throw new Error(`Request failed with status ${response.status}`);
       }
 
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        if (loadedGames.length > 0) {
+          break;
+        }
+        throw new Error("Bundled data response was not JSON.");
+      }
+
       const payload = await response.json();
       const games = extractGames(payload, `game${index}.json`);
 
@@ -325,9 +331,12 @@ async function loadBundledGames() {
       loadedGames.push(...games);
       index += 1;
     } catch (error) {
+      if (loadedGames.length > 0 && error instanceof SyntaxError) {
+        break;
+      }
+
       if (loadedGames.length > 0) {
         replaceGames(loadedGames, `bundled data files 1-${index - 1}`);
-        setStatus(`Loaded ${loadedGames.length} bundled games, then stopped at ${relativeSource}. ${error.message}`, true);
         return;
       }
 

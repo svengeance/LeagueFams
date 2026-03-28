@@ -1,5 +1,21 @@
 const DEFAULT_TIMEOUT_MS = 30000;
 
+function toDebugEnabled() {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env.DEBUG_RIOT || '').toLowerCase());
+}
+
+function debugLog(message, payload = {}) {
+  if (!toDebugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.debug(`[riot-debug] ${message}`, payload);
+}
+
+function maskApiKey(value) {
+  if (!value) return '(missing)';
+  if (value.length <= 8) return '***';
+  return `${value.slice(0, 5)}...${value.slice(-3)}`;
+}
+
 export class RiotApiError extends Error {
   constructor(message, statusCode = 400) {
     super(message);
@@ -30,25 +46,48 @@ async function riotGet(url, apiKey, params = {}) {
     }
   });
 
+  const headers = { 'X-Riot-Token': apiKey };
+
+  debugLog('Outgoing Riot request', {
+    method: 'GET',
+    url: targetUrl.toString(),
+    headers: {
+      ...headers,
+      'X-Riot-Token': maskApiKey(apiKey),
+    },
+  });
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
 
   try {
     const response = await fetch(targetUrl.toString(), {
       method: 'GET',
-      headers: { 'X-Riot-Token': apiKey },
+      headers,
       signal: controller.signal,
     });
 
+    const text = await response.text();
+
+    debugLog('Incoming Riot response', {
+      status: response.status,
+      statusText: response.statusText,
+      url: targetUrl.toString(),
+      body: text,
+    });
+
     if (!response.ok) {
-      const detail = await response.text();
       throw new RiotApiError(
-        `Riot API request failed (${response.status}) for ${targetUrl.pathname}: ${detail}`,
+        `Riot API request failed (${response.status}) for ${targetUrl.pathname}: ${text}`,
         response.status,
       );
     }
 
-    return await response.json();
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
   } catch (error) {
     if (error.name === 'AbortError') {
       throw new RiotApiError('Riot API request timed out.');
@@ -61,11 +100,16 @@ async function riotGet(url, apiKey, params = {}) {
 
 export class RiotClient {
   constructor({ apiKey = process.env.RIOT_API_KEY } = {}) {
-    if (!apiKey) {
+    if (!apiKey || !String(apiKey).trim()) {
       throw new RiotApiError('Missing RIOT_API_KEY environment variable.');
     }
 
-    this.apiKey = apiKey;
+    this.apiKey = String(apiKey).trim();
+
+    debugLog('Initialized RiotClient', {
+      tokenPreview: maskApiKey(this.apiKey),
+      tokenLength: this.apiKey.length,
+    });
   }
 
   async getIdentity(platform, riotId) {

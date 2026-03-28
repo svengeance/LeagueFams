@@ -73,6 +73,7 @@ This starts:
 ## Notes
 
 - `backend/src/server.js` loads environment variables from `backend/.env` first, then root `.env` as a fallback.
+- Set `DEBUG_RIOT=true` in your `.env` to log full Riot request/response debug output (URL, params, masked token, status, response body) for troubleshooting 403s.
 - This starter uses a simple sequential fetch strategy for clarity.
 - Riot API rate limits apply; for production, add retries/backoff + caching.
 - The match query is currently set to ranked games (`type=ranked`) and up to 100 matches per summoner.

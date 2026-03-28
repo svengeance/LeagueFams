@@ -1,0 +1,14 @@
+{
+  "name": "leaguefams",
+  "private": true,
+  "version": "0.3.0",
+  "description": "LeagueFams full-stack dev runner",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm --prefix backend run dev\" \"npx http-server frontend -p 5500 -c-1\"",
+    "check": "npm --prefix backend run check"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "http-server": "^14.1.1"
+  }
+}

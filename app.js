@@ -1,86 +1,3 @@
-const sampleDatasets = [
-  {
-    source: "league-sample-data.json",
-    data: {
-      gameDuration: 1236318,
-      participants: [
-        {
-          ASSISTS: "35",
-          CHAMPIONS_KILLED: "5",
-          GOLD_EARNED: "20828",
-          LARGEST_ABILITY_DAMAGE: "1178",
-          LARGEST_ATTACK_DAMAGE: "305",
-          LARGEST_CRITICAL_STRIKE: "0",
-          LARGEST_KILLING_SPREE: "2",
-          LARGEST_MULTI_KILL: "1",
-          NUM_DEATHS: "11",
-          PENTA_KILLS: "0",
-          RIOT_ID_GAME_NAME: "Stibbs",
-          TIME_PLAYED: "1236",
-          TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: "52700",
-          TOTAL_DAMAGE_TAKEN: "24880",
-          TOTAL_HEAL: "1718",
-          WIN: "Win"
-        },
-        {
-          ASSISTS: "25",
-          CHAMPIONS_KILLED: "22",
-          GOLD_EARNED: "20943",
-          LARGEST_ABILITY_DAMAGE: "633",
-          LARGEST_ATTACK_DAMAGE: "284",
-          LARGEST_CRITICAL_STRIKE: "0",
-          LARGEST_KILLING_SPREE: "4",
-          LARGEST_MULTI_KILL: "2",
-          NUM_DEATHS: "9",
-          PENTA_KILLS: "0",
-          RIOT_ID_GAME_NAME: "Nox",
-          TIME_PLAYED: "1236",
-          TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: "67926",
-          TOTAL_DAMAGE_TAKEN: "23984",
-          TOTAL_HEAL: "1839",
-          WIN: "Win"
-        },
-        {
-          ASSISTS: "26",
-          CHAMPIONS_KILLED: "20",
-          GOLD_EARNED: "21114",
-          LARGEST_ABILITY_DAMAGE: "1086",
-          LARGEST_ATTACK_DAMAGE: "948",
-          LARGEST_CRITICAL_STRIKE: "1086",
-          LARGEST_KILLING_SPREE: "4",
-          LARGEST_MULTI_KILL: "3",
-          NUM_DEATHS: "13",
-          PENTA_KILLS: "0",
-          RIOT_ID_GAME_NAME: "Plzz",
-          TIME_PLAYED: "1236",
-          TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: "42996",
-          TOTAL_DAMAGE_TAKEN: "42372",
-          TOTAL_HEAL: "15351",
-          WIN: "Win"
-        },
-        {
-          ASSISTS: "24",
-          CHAMPIONS_KILLED: "25",
-          GOLD_EARNED: "21563",
-          LARGEST_ABILITY_DAMAGE: "851",
-          LARGEST_ATTACK_DAMAGE: "321",
-          LARGEST_CRITICAL_STRIKE: "0",
-          LARGEST_KILLING_SPREE: "4",
-          LARGEST_MULTI_KILL: "3",
-          NUM_DEATHS: "11",
-          PENTA_KILLS: "0",
-          RIOT_ID_GAME_NAME: "StarForgeR",
-          TIME_PLAYED: "1236",
-          TOTAL_DAMAGE_DEALT_TO_CHAMPIONS: "57516",
-          TOTAL_DAMAGE_TAKEN: "99460",
-          TOTAL_HEAL: "28848",
-          WIN: "Win"
-        }
-      ]
-    }
-  }
-];
-
 const state = {
   games: []
 };
@@ -88,7 +5,7 @@ const state = {
 const elements = {
   fileInput: document.querySelector("#fileInput"),
   dropzone: document.querySelector("#dropzone"),
-  loadSampleButton: document.querySelector("#loadSampleButton"),
+  reloadBundledButton: document.querySelector("#reloadBundledButton"),
   clearButton: document.querySelector("#clearButton"),
   statusText: document.querySelector("#statusText"),
   overviewCards: document.querySelector("#overviewCards"),
@@ -374,6 +291,48 @@ async function loadFiles(fileList) {
   elements.fileInput.value = "";
 }
 
+async function loadBundledGames() {
+  const loadedGames = [];
+  let index = 1;
+
+  setStatus("Loading bundled data from data/game{x}.json ...");
+
+  while (true) {
+    const source = `data/game${index}.json`;
+
+    try {
+      const response = await fetch(source, { cache: "no-store" });
+
+      if (response.status === 404) {
+        break;
+      }
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const games = extractGames(payload, `game${index}.json`);
+
+      if (games.length === 0) {
+        throw new Error("No games found in file.");
+      }
+
+      loadedGames.push(...games);
+      index += 1;
+    } catch (error) {
+      if (loadedGames.length === 0) {
+        setStatus(`Could not load bundled data. ${error.message}`, true);
+      } else {
+        setStatus(`Loaded ${loadedGames.length} bundled games before stopping at ${source}.`, true);
+      }
+      return;
+    }
+  }
+
+  replaceGames(loadedGames, `bundled data files 1-${Math.max(index - 1, 0)}`);
+}
+
 function installDropzone() {
   ["dragenter", "dragover"].forEach((eventName) => {
     elements.dropzone.addEventListener(eventName, (event) => {
@@ -398,9 +357,8 @@ elements.fileInput.addEventListener("change", (event) => {
   loadFiles(event.target.files);
 });
 
-elements.loadSampleButton.addEventListener("click", () => {
-  const sampleGames = sampleDatasets.flatMap((entry) => extractGames(entry.data, entry.source));
-  replaceGames(sampleGames, "embedded sample data");
+elements.reloadBundledButton.addEventListener("click", () => {
+  loadBundledGames();
 });
 
 elements.clearButton.addEventListener("click", () => {
@@ -411,3 +369,4 @@ elements.clearButton.addEventListener("click", () => {
 
 installDropzone();
 render();
+loadBundledGames();

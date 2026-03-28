@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LeagueFams Match Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Client-side match explorer</p>
+        <h1>League match data, turned into something you can actually scan.</h1>
+        <p class="hero-text">
+          Upload one or more JSON exports, browse each game at a glance, and compare cumulative player performance without any backend.
+        </p>
+      </div>
+      <div class="hero-panel">
+        <label class="upload-panel" for="fileInput" id="dropzone">
+          <input id="fileInput" type="file" accept=".json,application/json" multiple>
+          <span class="upload-title">Drop JSON files here</span>
+          <span class="upload-subtitle">or click to choose files from your computer</span>
+        </label>
+        <div class="hero-actions">
+          <button id="loadSampleButton" class="button button-primary" type="button">Load sample data</button>
+          <button id="clearButton" class="button button-secondary" type="button">Clear all</button>
+        </div>
+        <p class="helper-text" id="statusText">No files loaded yet.</p>
+      </div>
+    </header>
+
+    <main class="content-grid">
+      <section class="summary-strip" id="overviewCards"></section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Games</p>
+            <h2>Match Cards</h2>
+          </div>
+          <p class="section-note">Each card shows the result, duration, and core K / D / A stats for every participant.</p>
+        </div>
+        <div id="gamesContainer" class="games-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Cumulative</p>
+            <h2>Player Totals & Averages</h2>
+          </div>
+          <p class="section-note">Totals stack across all loaded files. Averages are shown per game played.</p>
+        </div>
+        <div class="table-wrap">
+          <table class="stats-table">
+            <thead>
+              <tr>
+                <th>Player</th>
+                <th>Games</th>
+                <th>Wins</th>
+                <th>Win %</th>
+                <th>Kills</th>
+                <th>Deaths</th>
+                <th>Assists</th>
+                <th>Avg K</th>
+                <th>Avg D</th>
+                <th>Avg A</th>
+                <th>KDA</th>
+              </tr>
+            </thead>
+            <tbody id="totalsTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state">
+      <h3>No match data loaded</h3>
+      <p>Upload one or more files to generate game cards and player summaries.</p>
+    </div>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>

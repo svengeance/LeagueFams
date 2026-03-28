@@ -10,7 +10,7 @@ A simple two-tier app (Node/Express backend + static HTML/JS frontend) that:
 
 ## Architecture
 
-- `backend/src/server.js`: API routes, input validation, and startup.
+- `backend/src/server.js`: API routes, input validation, environment loading, and startup.
 - `backend/src/riotClient.js`: Riot API HTTP client.
 - `backend/src/analyzeService.js`: mutual match intersection + statistics computation.
 - `frontend/index.html`, `frontend/main.js`, `frontend/styles.css`: UI form, rendering, and styles.
@@ -45,28 +45,34 @@ Example request:
 }
 ```
 
-## Local run
+## Setup
 
-Backend:
+1. Copy env template and set your Riot key:
 
 ```bash
-cd backend
+cp .env.example .env
+```
+
+2. Install dependencies:
+
+```bash
 npm install
-export RIOT_API_KEY=your_riot_api_key
+npm --prefix backend install
+```
+
+## Run everything with one command
+
+```bash
 npm run dev
 ```
 
-Frontend:
-
-```bash
-cd frontend
-npx http-server -p 5500
-```
-
-Then open `http://localhost:5500`.
+This starts:
+- Backend: `http://localhost:8000`
+- Frontend: `http://localhost:5500`
 
 ## Notes
 
+- `backend/src/server.js` loads environment variables from `backend/.env` first, then root `.env` as a fallback.
 - This starter uses a simple sequential fetch strategy for clarity.
 - Riot API rate limits apply; for production, add retries/backoff + caching.
 - The match query is currently set to ranked games (`type=ranked`) and up to 100 matches per summoner.

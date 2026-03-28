@@ -1,9 +1,21 @@
-import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import cors from 'cors';
+import dotenv from 'dotenv';
 import express from 'express';
 
 import { analyzeMutualGames } from './analyzeService.js';
 import { RiotApiError, RiotClient } from './riotClient.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const backendRoot = path.resolve(__dirname, '..');
+const repoRoot = path.resolve(backendRoot, '..');
+
+// Load env from backend/.env first, then fallback to repo-root .env.
+dotenv.config({ path: path.join(backendRoot, '.env') });
+dotenv.config({ path: path.join(repoRoot, '.env'), override: false });
 
 const app = express();
 const port = Number(process.env.PORT || 8000);

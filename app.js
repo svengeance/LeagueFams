@@ -2,6 +2,9 @@ const state = {
   games: []
 };
 
+const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
+const assetBaseUrl = new URL(".", scriptSource);
+
 const elements = {
   fileInput: document.querySelector("#fileInput"),
   dropzone: document.querySelector("#dropzone"),
@@ -298,10 +301,11 @@ async function loadBundledGames() {
   setStatus("Loading bundled data from data/game{x}.json ...");
 
   while (true) {
-    const source = `data/game${index}.json`;
+    const relativeSource = `data/game${index}.json`;
+    const sourceUrl = new URL(relativeSource, assetBaseUrl);
 
     try {
-      const response = await fetch(source, { cache: "no-store" });
+      const response = await fetch(sourceUrl, { cache: "no-store" });
 
       if (response.status === 404) {
         break;
@@ -321,13 +325,20 @@ async function loadBundledGames() {
       loadedGames.push(...games);
       index += 1;
     } catch (error) {
-      if (loadedGames.length === 0) {
-        setStatus(`Could not load bundled data. ${error.message}`, true);
-      } else {
-        setStatus(`Loaded ${loadedGames.length} bundled games before stopping at ${source}.`, true);
+      if (loadedGames.length > 0) {
+        replaceGames(loadedGames, `bundled data files 1-${index - 1}`);
+        setStatus(`Loaded ${loadedGames.length} bundled games, then stopped at ${relativeSource}. ${error.message}`, true);
+        return;
       }
+
+      setStatus(`Could not load bundled data from ${relativeSource}. ${error.message}`, true);
       return;
     }
+  }
+
+  if (loadedGames.length === 0) {
+    setStatus("No bundled data files were found under data/.", true);
+    return;
   }
 
   replaceGames(loadedGames, `bundled data files 1-${Math.max(index - 1, 0)}`);

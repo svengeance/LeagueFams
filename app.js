@@ -2,6 +2,7 @@ const state = {
   games: []
 };
 
+const MINIMUM_GAME_SECONDS = 5 * 60;
 const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
 const assetBaseUrl = new URL(".", scriptSource);
 
@@ -64,6 +65,10 @@ function normalizeGame(rawGame, source, index) {
     durationSeconds: normalizedParticipants[0] ? coerceNumber(normalizedParticipants[0].raw.TIME_PLAYED) : Math.round(coerceNumber(rawGame.gameDuration) / 1000),
     players: normalizedParticipants
   };
+}
+
+function filterEligibleGames(games) {
+  return games.filter((game) => game.durationSeconds >= MINIMUM_GAME_SECONDS);
 }
 
 function extractGames(payload, source) {
@@ -277,10 +282,10 @@ async function loadFiles(fileList) {
     try {
       const text = await file.text();
       const payload = JSON.parse(text);
-      const games = extractGames(payload, file.name);
+      const games = filterEligibleGames(extractGames(payload, file.name));
 
       if (games.length === 0) {
-        throw new Error("No games found in file.");
+        throw new Error("No eligible games found in file.");
       }
 
       loadedGames.push(...games);
@@ -322,10 +327,11 @@ async function loadBundledGames() {
       }
 
       const payload = await response.json();
-      const games = extractGames(payload, `game${index}.json`);
+      const games = filterEligibleGames(extractGames(payload, `game${index}.json`));
 
       if (games.length === 0) {
-        throw new Error("No games found in file.");
+        index += 1;
+        continue;
       }
 
       loadedGames.push(...games);

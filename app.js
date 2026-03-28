@@ -1,8 +1,26 @@
+const MINIMUM_GAME_SECONDS = 5 * 60;
+const CHART_WIDTH = 960;
+const CHART_HEIGHT = 420;
+const CHART_MARGIN = { top: 28, right: 28, bottom: 56, left: 72 };
+const PLAYER_COLORS = ["#f0d59c", "#6bc9ff", "#35d09a", "#ff8a6b", "#c89bff", "#ffcf5a", "#7ef0d3", "#ff77b7"];
+
+const CHART_STATS = [
+  { key: "kills", label: "Kills" },
+  { key: "deaths", label: "Deaths" },
+  { key: "assists", label: "Assists" },
+  { key: "gold", label: "Gold" },
+  { key: "largestMultiKill", label: "Largest Multi Kill" },
+  { key: "totalDamageDealt", label: "Total Damage Dealt" },
+  { key: "totalDamageTaken", label: "Total Damage Taken" },
+  { key: "totalHeal", label: "Total Healed" }
+];
+
 const state = {
-  games: []
+  games: [],
+  activeView: "totals",
+  activeChartStat: "kills"
 };
 
-const MINIMUM_GAME_SECONDS = 5 * 60;
 const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
 const assetBaseUrl = new URL(".", scriptSource);
 
@@ -13,8 +31,13 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   statusText: document.querySelector("#statusText"),
   overviewCards: document.querySelector("#overviewCards"),
-  gamesContainer: document.querySelector("#gamesContainer"),
   totalsTableBody: document.querySelector("#totalsTableBody"),
+  gamesContainer: document.querySelector("#gamesContainer"),
+  chartStage: document.querySelector("#chartStage"),
+  chartLegend: document.querySelector("#chartLegend"),
+  chartStatButtons: document.querySelector("#chartStatButtons"),
+  tabButtons: [...document.querySelectorAll(".tab-button")],
+  viewPanels: [...document.querySelectorAll(".view-panel")],
   emptyStateTemplate: document.querySelector("#emptyStateTemplate")
 };
 
@@ -39,30 +62,40 @@ function normalizeGame(rawGame, source, index) {
     const kills = coerceNumber(participant.CHAMPIONS_KILLED);
     const deaths = coerceNumber(participant.NUM_DEATHS);
     const assists = coerceNumber(participant.ASSISTS);
-    const damage = coerceNumber(participant.TOTAL_DAMAGE_DEALT_TO_CHAMPIONS);
     const gold = coerceNumber(participant.GOLD_EARNED);
+    const largestMultiKill = coerceNumber(participant.LARGEST_MULTI_KILL);
+    const damageToChampions = coerceNumber(participant.TOTAL_DAMAGE_DEALT_TO_CHAMPIONS);
+    const totalDamageDealt = coerceNumber(participant.TOTAL_DAMAGE_DEALT) || damageToChampions;
+    const totalDamageTaken = coerceNumber(participant.TOTAL_DAMAGE_TAKEN);
+    const totalHeal = coerceNumber(participant.TOTAL_HEAL);
     const won = String(participant.WIN || "").toLowerCase() === "win";
+
     return {
       name: participant.RIOT_ID_GAME_NAME || "Unknown player",
       kills,
       deaths,
       assists,
-      damage,
       gold,
+      largestMultiKill,
+      damageToChampions,
+      totalDamageDealt,
+      totalDamageTaken,
+      totalHeal,
       won,
       raw: participant
     };
   });
 
-  const participantsWithOutcome = normalizedParticipants.filter((participant) => participant.won).length;
-  const result = participantsWithOutcome > 0 ? "Victory" : "Defeat";
+  const result = normalizedParticipants.some((participant) => participant.won) ? "Victory" : "Defeat";
 
   return {
     id: `${source}-${index}`,
     source,
     result,
     durationLabel: formatDuration(rawGame.gameDuration, participants),
-    durationSeconds: normalizedParticipants[0] ? coerceNumber(normalizedParticipants[0].raw.TIME_PLAYED) : Math.round(coerceNumber(rawGame.gameDuration) / 1000),
+    durationSeconds: normalizedParticipants[0]
+      ? coerceNumber(normalizedParticipants[0].raw.TIME_PLAYED)
+      : Math.round(coerceNumber(rawGame.gameDuration) / 1000),
     players: normalizedParticipants
   };
 }
@@ -135,6 +168,20 @@ function kda(player) {
   return ((player.kills + player.assists) / Math.max(player.deaths, 1)).toFixed(2);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function getPlayerColor(playerName, playerNames) {
+  const index = playerNames.indexOf(playerName);
+  return PLAYER_COLORS[index % PLAYER_COLORS.length];
+}
+
 function renderOverview(games, totals) {
   if (games.length === 0) {
     elements.overviewCards.innerHTML = "";
@@ -151,7 +198,7 @@ function renderOverview(games, totals) {
     {
       label: "Games loaded",
       value: formatNumber(games.length),
-      detail: `${formatNumber(totalWins)} wins across all uploaded records`
+      detail: `${formatNumber(totalWins)} wins across all eligible records`
     },
     {
       label: "Unique players",
@@ -161,7 +208,7 @@ function renderOverview(games, totals) {
     {
       label: "Avg. match length",
       value: formatDuration(averageGameLength * 1000, [{ TIME_PLAYED: Math.round(averageGameLength) }]),
-      detail: "Calculated from each game's reported time played"
+      detail: "Short games under 5 minutes are excluded"
     },
     {
       label: "Top finisher",
@@ -172,42 +219,9 @@ function renderOverview(games, totals) {
 
   elements.overviewCards.innerHTML = cards.map((card) => `
     <article class="summary-card">
-      <span class="summary-label">${card.label}</span>
-      <span class="summary-value">${card.value}</span>
-      <div class="summary-detail">${card.detail}</div>
-    </article>
-  `).join("");
-}
-
-function renderGames(games) {
-  if (games.length === 0) {
-    elements.gamesContainer.innerHTML = elements.emptyStateTemplate.innerHTML;
-    return;
-  }
-
-  elements.gamesContainer.innerHTML = games.map((game, index) => `
-    <article class="game-card">
-      <header class="game-card-header">
-        <div>
-          <h3 class="game-title">Game ${index + 1}</h3>
-          <div class="game-meta">
-            <span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${game.result}</span>
-            <span class="pill pill-neutral">${game.durationLabel}</span>
-          </div>
-        </div>
-        <span class="pill pill-neutral">${game.source}</span>
-      </header>
-      <div class="participants-list">
-        ${game.players.map((player) => `
-          <article class="participant-row">
-            <div>
-              <p class="participant-name">${player.name}</p>
-              <p class="participant-subtext">${formatNumber(player.damage)} damage to champions | ${formatNumber(player.gold)} gold earned</p>
-            </div>
-            <div class="kda-line">${player.kills} / ${player.deaths} / ${player.assists}</div>
-          </article>
-        `).join("")}
-      </div>
+      <span class="summary-label">${escapeHtml(card.label)}</span>
+      <span class="summary-value">${escapeHtml(card.value)}</span>
+      <div class="summary-detail">${escapeHtml(card.detail)}</div>
     </article>
   `).join("");
 }
@@ -229,7 +243,7 @@ function renderTotals(totals) {
 
   elements.totalsTableBody.innerHTML = totals.map((player) => `
     <tr>
-      <td>${player.name}</td>
+      <td>${escapeHtml(player.name)}</td>
       <td>${formatNumber(player.games)}</td>
       <td>${formatNumber(player.wins)}</td>
       <td>${formatNumber((player.wins / player.games) * 100, 1)}%</td>
@@ -244,11 +258,283 @@ function renderTotals(totals) {
   `).join("");
 }
 
+function renderGames(games) {
+  if (games.length === 0) {
+    elements.gamesContainer.innerHTML = elements.emptyStateTemplate.innerHTML;
+    return;
+  }
+
+  elements.gamesContainer.innerHTML = games.map((game, index) => `
+    <article class="game-card">
+      <header class="game-card-header">
+        <div>
+          <h3 class="game-title">Game ${index + 1}</h3>
+          <div class="game-meta">
+            <span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${escapeHtml(game.result)}</span>
+            <span class="pill pill-neutral">${escapeHtml(game.durationLabel)}</span>
+          </div>
+        </div>
+        <span class="pill pill-neutral">${escapeHtml(game.source)}</span>
+      </header>
+      <div class="participants-list">
+        ${game.players.map((player) => `
+          <article class="participant-row">
+            <div>
+              <p class="participant-name">${escapeHtml(player.name)}</p>
+              <p class="participant-subtext">${formatNumber(player.damageToChampions)} damage to champions | ${formatNumber(player.gold)} gold earned</p>
+            </div>
+            <div class="kda-line">${player.kills} / ${player.deaths} / ${player.assists}</div>
+          </article>
+        `).join("")}
+      </div>
+    </article>
+  `).join("");
+}
+
+function niceMax(value) {
+  if (value <= 0) {
+    return 1;
+  }
+
+  const exponent = Math.floor(Math.log10(value));
+  const fraction = value / (10 ** exponent);
+  let niceFraction = 1;
+
+  if (fraction <= 1) {
+    niceFraction = 1;
+  } else if (fraction <= 2) {
+    niceFraction = 2;
+  } else if (fraction <= 5) {
+    niceFraction = 5;
+  } else {
+    niceFraction = 10;
+  }
+
+  return niceFraction * (10 ** exponent);
+}
+
+function buildChartSeries(games, statKey) {
+  const playerNames = [...new Set(games.flatMap((game) => game.players.map((player) => player.name)))];
+  return playerNames.map((name) => ({
+    name,
+    color: getPlayerColor(name, playerNames),
+    points: games.map((game, index) => {
+      const player = game.players.find((entry) => entry.name === name);
+      return {
+        x: index + 1,
+        y: player ? coerceNumber(player[statKey]) : null
+      };
+    })
+  }));
+}
+
+function renderChart(games) {
+  if (games.length === 0) {
+    elements.chartStage.innerHTML = `
+      <div class="empty-state">
+        <h3>No chart data yet</h3>
+        <p>Load match files to compare player trends over time.</p>
+      </div>
+    `;
+    elements.chartLegend.innerHTML = "";
+    return;
+  }
+
+  const statConfig = CHART_STATS.find((stat) => stat.key === state.activeChartStat) || CHART_STATS[0];
+  const series = buildChartSeries(games, statConfig.key);
+  const allValues = series.flatMap((player) => player.points.map((point) => point.y).filter((value) => value !== null));
+  const maxValue = Math.max(...allValues, 0);
+  const yMax = niceMax(maxValue);
+  const innerWidth = CHART_WIDTH - CHART_MARGIN.left - CHART_MARGIN.right;
+  const innerHeight = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom;
+  const xStep = games.length > 1 ? innerWidth / (games.length - 1) : 0;
+  const tickCount = 5;
+  const yTicks = Array.from({ length: tickCount + 1 }, (_, index) => (yMax / tickCount) * index);
+  const xLabelCount = Math.min(games.length, 6);
+  const xIndices = new Set(
+    Array.from({ length: xLabelCount }, (_, index) => {
+      if (xLabelCount === 1) {
+        return 0;
+      }
+      return Math.round((index / (xLabelCount - 1)) * (games.length - 1));
+    })
+  );
+
+  const xForIndex = (index) => CHART_MARGIN.left + (games.length > 1 ? index * xStep : innerWidth / 2);
+  const yForValue = (value) => CHART_MARGIN.top + innerHeight - (value / yMax) * innerHeight;
+
+  const gridLines = yTicks.map((tick) => {
+    const y = yForValue(tick);
+    return `
+      <line class="chart-grid-line" x1="${CHART_MARGIN.left}" y1="${y}" x2="${CHART_WIDTH - CHART_MARGIN.right}" y2="${y}"></line>
+      <text class="chart-axis-label chart-axis-label-y" x="${CHART_MARGIN.left - 12}" y="${y + 4}">${formatNumber(tick)}</text>
+    `;
+  }).join("");
+
+  const xLabels = games.map((game, index) => {
+    if (!xIndices.has(index)) {
+      return "";
+    }
+    const x = xForIndex(index);
+    return `
+      <text class="chart-axis-label chart-axis-label-x" x="${x}" y="${CHART_HEIGHT - 18}">G${index + 1}</text>
+    `;
+  }).join("");
+
+  const hoverColumns = games.map((game, index) => {
+    const centerX = xForIndex(index);
+    const previousX = index === 0 ? CHART_MARGIN.left : xForIndex(index - 1);
+    const nextX = index === games.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : xForIndex(index + 1);
+    const leftX = index === 0 ? CHART_MARGIN.left : centerX - ((centerX - previousX) / 2);
+    const rightX = index === games.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : centerX + ((nextX - centerX) / 2);
+    const columnWidth = Math.max(rightX - leftX, 18);
+    const tooltipRows = series
+      .map((player) => {
+        const point = player.points[index];
+        if (!point || point.y === null) {
+          return null;
+        }
+        return {
+          name: player.name,
+          color: player.color,
+          value: formatNumber(point.y)
+        };
+      })
+      .filter(Boolean);
+
+    const tooltipHeight = 34 + (tooltipRows.length * 18);
+    const tooltipWidth = 184;
+    const tooltipX = Math.min(
+      Math.max(centerX + 14, CHART_MARGIN.left + 8),
+      CHART_WIDTH - CHART_MARGIN.right - tooltipWidth
+    );
+    const tooltipY = Math.max(CHART_MARGIN.top + 8, 18);
+
+    const tooltipContent = tooltipRows.map((row, rowIndex) => `
+      <g transform="translate(${tooltipX + 14}, ${tooltipY + 34 + (rowIndex * 18)})">
+        <circle r="4" cx="0" cy="-4" fill="${row.color}"></circle>
+        <text class="chart-shared-tooltip-line" x="10" y="0">${escapeHtml(row.name)}: ${row.value}</text>
+      </g>
+    `).join("");
+
+    return `
+      <g class="chart-hover-column">
+        <rect
+          class="chart-hover-hit"
+          x="${leftX}"
+          y="${CHART_MARGIN.top}"
+          width="${columnWidth}"
+          height="${innerHeight}"
+        ></rect>
+        <line
+          class="chart-hover-line"
+          x1="${centerX}"
+          y1="${CHART_MARGIN.top}"
+          x2="${centerX}"
+          y2="${CHART_HEIGHT - CHART_MARGIN.bottom}"
+        ></line>
+        <g class="chart-shared-tooltip">
+          <rect
+            class="chart-tooltip-box"
+            x="${tooltipX}"
+            y="${tooltipY}"
+            width="${tooltipWidth}"
+            height="${tooltipHeight}"
+            rx="10"
+            ry="10"
+          ></rect>
+          <text class="chart-tooltip-title" x="${tooltipX + 14}" y="${tooltipY + 20}">Game ${index + 1}</text>
+          ${tooltipContent}
+        </g>
+      </g>
+    `;
+  }).join("");
+
+  const lineMarkup = series.map((player) => {
+    const validPoints = player.points.filter((point) => point.y !== null);
+    const polylinePoints = validPoints.map((point) => {
+      const x = xForIndex(point.x - 1);
+      const y = yForValue(point.y);
+      return `${x},${y}`;
+    }).join(" ");
+
+    const dots = validPoints.map((point) => {
+      const x = xForIndex(point.x - 1);
+      const y = yForValue(point.y);
+      return `<circle class="chart-dot" cx="${x}" cy="${y}" r="4" fill="${player.color}"></circle>`;
+    }).join("");
+
+    return `
+      <g>
+        <polyline class="chart-line" points="${polylinePoints}" stroke="${player.color}"></polyline>
+        ${dots}
+      </g>
+    `;
+  }).join("");
+
+  elements.chartStage.innerHTML = `
+    <div class="chart-card">
+      <svg class="chart-svg" viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" role="img" aria-label="${escapeHtml(statConfig.label)} line chart">
+        ${gridLines}
+        <line class="chart-axis-line" x1="${CHART_MARGIN.left}" y1="${CHART_MARGIN.top}" x2="${CHART_MARGIN.left}" y2="${CHART_HEIGHT - CHART_MARGIN.bottom}"></line>
+        <line class="chart-axis-line" x1="${CHART_MARGIN.left}" y1="${CHART_HEIGHT - CHART_MARGIN.bottom}" x2="${CHART_WIDTH - CHART_MARGIN.right}" y2="${CHART_HEIGHT - CHART_MARGIN.bottom}"></line>
+        ${xLabels}
+        ${lineMarkup}
+        ${hoverColumns}
+      </svg>
+    </div>
+  `;
+
+  elements.chartLegend.innerHTML = series.map((player) => `
+    <div class="legend-chip">
+      <span class="legend-swatch" style="background:${player.color}"></span>
+      <span>${escapeHtml(player.name)}</span>
+    </div>
+  `).join("");
+}
+
+function renderTabs() {
+  elements.tabButtons.forEach((button) => {
+    const isActive = button.dataset.view === state.activeView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  });
+
+  elements.viewPanels.forEach((panel) => {
+    const isActive = panel.dataset.view === state.activeView;
+    panel.hidden = !isActive;
+    panel.classList.toggle("is-active", isActive);
+  });
+}
+
+function renderChartStatButtons() {
+  elements.chartStatButtons.innerHTML = CHART_STATS.map((stat) => `
+    <button
+      class="chart-stat-button ${stat.key === state.activeChartStat ? "is-active" : ""}"
+      type="button"
+      data-stat-key="${stat.key}"
+    >
+      ${escapeHtml(stat.label)}
+    </button>
+  `).join("");
+
+  [...elements.chartStatButtons.querySelectorAll(".chart-stat-button")].forEach((button) => {
+    button.addEventListener("click", () => {
+      state.activeChartStat = button.dataset.statKey;
+      renderChartStatButtons();
+      renderChart(state.games);
+    });
+  });
+}
+
 function render() {
   const totals = aggregatePlayers(state.games);
+  renderChartStatButtons();
   renderOverview(state.games, totals);
-  renderGames(state.games);
   renderTotals(totals);
+  renderChart(state.games);
+  renderGames(state.games);
+  renderTabs();
 }
 
 function setStatus(message, isError = false) {
@@ -391,6 +677,13 @@ elements.clearButton.addEventListener("click", () => {
   state.games = [];
   render();
   setStatus("Cleared all loaded game data.");
+});
+
+elements.tabButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.activeView = button.dataset.view;
+    renderTabs();
+  });
 });
 
 installDropzone();

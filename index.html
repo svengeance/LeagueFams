@@ -14,17 +14,15 @@
     <header class="topbar">
       <div class="topbar-brand">
         <p class="eyebrow">LeagueFams</p>
-        <h1>Match archive and player stat command center.</h1>
-        <p class="topbar-text">
-          Bundled match history loads on arrival, and you can manually upload more JSON exports whenever you want to extend the board.
-        </p>
+        <h1>Match Dashboard</h1>
+        <p class="topbar-text">Bundled history plus manual uploads.</p>
       </div>
 
       <div class="topbar-controls">
         <label class="toolbar-upload" for="fileInput" id="dropzone">
           <input id="fileInput" type="file" accept=".json,application/json" multiple>
-          <span class="upload-title">Manual upload</span>
-          <span class="upload-subtitle">Drop files here or browse for JSON exports</span>
+          <span class="upload-title">Upload JSON</span>
+          <span class="upload-subtitle">Drop or browse</span>
         </label>
 
         <div class="toolbar-buttons">
@@ -39,7 +37,13 @@
     <main class="content-grid">
       <section class="summary-strip" id="overviewCards"></section>
 
-      <section class="panel">
+      <section class="tabs-bar" aria-label="Data views">
+        <button class="tab-button is-active" type="button" data-view="totals" aria-selected="true">Cumulative Totals</button>
+        <button class="tab-button" type="button" data-view="chart" aria-selected="false">Trend Graph</button>
+        <button class="tab-button" type="button" data-view="cards" aria-selected="false">Game Cards</button>
+      </section>
+
+      <section class="panel view-panel is-active" data-view="totals">
         <div class="section-heading">
           <div>
             <p class="section-kicker">Cumulative</p>
@@ -69,7 +73,23 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel view-panel" data-view="chart" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">Trend Graph</p>
+            <h2>Player Performance Over Time</h2>
+          </div>
+        </div>
+        <div class="chart-controls">
+          <div class="chart-toolbar">
+            <div id="chartStatButtons" class="chart-stat-buttons"></div>
+          </div>
+        </div>
+        <div id="chartStage"></div>
+        <div id="chartLegend" class="chart-legend"></div>
+      </section>
+
+      <section class="panel view-panel" data-view="cards" hidden>
         <div class="section-heading">
           <div>
             <p class="section-kicker">Games</p>

@@ -19,6 +19,17 @@
       </div>
 
       <div class="topbar-controls">
+        <div class="toolbar-select-group">
+          <span class="toolbar-select-label">Collection</span>
+          <div class="toolbar-select-shell" id="collectionPicker">
+            <button id="collectionPickerButton" class="toolbar-select-button" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span id="collectionPickerLabel">Select collection</span>
+              <span class="toolbar-select-chevron" aria-hidden="true"></span>
+            </button>
+            <div id="collectionPickerMenu" class="toolbar-select-menu" role="listbox" hidden></div>
+          </div>
+        </div>
+
         <label class="toolbar-upload" for="fileInput" id="dropzone">
           <input id="fileInput" type="file" accept=".json,application/json" multiple>
           <span class="upload-title">Upload JSON</span>
@@ -36,10 +47,6 @@
 
     <main class="content-grid">
       <section class="summary-strip" id="overviewCards"></section>
-
-      <section class="collection-bar">
-        <div id="collectionChips" class="collection-chips"></div>
-      </section>
 
       <section class="tabs-bar" aria-label="Data views">
         <button class="tab-button is-active" type="button" data-view="totals" aria-selected="true">Cumulative Totals</button>

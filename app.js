@@ -54,9 +54,12 @@ const elements = {
   dropzone: document.querySelector("#dropzone"),
   reloadBundledButton: document.querySelector("#reloadBundledButton"),
   clearButton: document.querySelector("#clearButton"),
+  collectionPicker: document.querySelector("#collectionPicker"),
+  collectionPickerButton: document.querySelector("#collectionPickerButton"),
+  collectionPickerLabel: document.querySelector("#collectionPickerLabel"),
+  collectionPickerMenu: document.querySelector("#collectionPickerMenu"),
   statusText: document.querySelector("#statusText"),
   overviewCards: document.querySelector("#overviewCards"),
-  collectionChips: document.querySelector("#collectionChips"),
   totalsTableBody: document.querySelector("#totalsTableBody"),
   gamesContainer: document.querySelector("#gamesContainer"),
   chartStage: document.querySelector("#chartStage"),
@@ -310,33 +313,53 @@ function setCollectionHash(collectionName) {
   }
 }
 
-function renderCollectionChips() {
+function closeCollectionPicker() {
+  elements.collectionPickerButton.setAttribute("aria-expanded", "false");
+  elements.collectionPickerMenu.hidden = true;
+}
+
+function openCollectionPicker() {
   if (state.collections.length === 0) {
-    elements.collectionChips.innerHTML = "";
     return;
   }
 
-  elements.collectionChips.innerHTML = state.collections.map((collection) => `
+  elements.collectionPickerButton.setAttribute("aria-expanded", "true");
+  elements.collectionPickerMenu.hidden = false;
+}
+
+function renderCollectionSelect() {
+  if (!elements.collectionPickerMenu) {
+    return;
+  }
+
+  const isOpen = elements.collectionPickerButton.getAttribute("aria-expanded") === "true";
+  elements.collectionPickerLabel.textContent = state.activeCollection?.collection || "Select collection";
+  elements.collectionPickerButton.disabled = state.collections.length === 0;
+  elements.collectionPickerMenu.hidden = !isOpen || state.collections.length === 0;
+  elements.collectionPickerMenu.innerHTML = state.collections.map((collection) => `
     <button
-      class="collection-chip ${state.activeCollection?.collection === collection.collection ? "is-active" : ""}"
+      class="toolbar-select-option ${state.activeCollection?.collection === collection.collection ? "is-active" : ""}"
       type="button"
+      role="option"
+      aria-selected="${state.activeCollection?.collection === collection.collection}"
       data-collection="${escapeHtml(collection.collection)}"
     >
       ${escapeHtml(collection.collection)}
     </button>
   `).join("");
 
-  [...elements.collectionChips.querySelectorAll(".collection-chip")].forEach((button) => {
+  [...elements.collectionPickerMenu.querySelectorAll(".toolbar-select-option")].forEach((button) => {
     button.addEventListener("click", () => {
-      const collection = state.collections.find((entry) => entry.collection === button.dataset.collection);
-      if (!collection) {
+      const nextCollection = state.collections.find((entry) => entry.collection === button.dataset.collection);
+      if (!nextCollection) {
         return;
       }
 
-      state.activeCollection = collection;
-      renderCollectionChips();
-      setCollectionHash(collection.collection);
-      loadCollectionGames(collection);
+      state.activeCollection = nextCollection;
+      renderCollectionSelect();
+      closeCollectionPicker();
+      setCollectionHash(nextCollection.collection);
+      loadCollectionGames(nextCollection, false);
     });
   });
 }
@@ -717,7 +740,7 @@ function renderChartStatButtons() {
 
 function render() {
   const totals = aggregatePlayers(state.games);
-  renderCollectionChips();
+  renderCollectionSelect();
   renderChartStatButtons();
   renderOverview(state.games, totals);
   renderTotals(totals);
@@ -734,8 +757,6 @@ function setStatus(message, isError = false) {
 function replaceGames(games, sourceLabel) {
   state.games = [...games];
   render();
-  const gameLabel = state.games.length === 1 ? "game" : "games";
-  setStatus(`Loaded ${state.games.length} ${gameLabel} from ${sourceLabel}.`);
 }
 
 function addGames(games, sourceLabel) {
@@ -898,8 +919,23 @@ window.addEventListener("hashchange", () => {
   }
 
   state.activeCollection = nextCollection;
-  renderCollectionChips();
+  renderCollectionSelect();
   loadCollectionGames(nextCollection, false);
+});
+
+elements.collectionPickerButton.addEventListener("click", () => {
+  const isOpen = elements.collectionPickerButton.getAttribute("aria-expanded") === "true";
+  if (isOpen) {
+    closeCollectionPicker();
+  } else {
+    openCollectionPicker();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (!elements.collectionPicker.contains(event.target)) {
+    closeCollectionPicker();
+  }
 });
 
 installDropzone();

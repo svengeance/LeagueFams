@@ -15,6 +15,28 @@ const CHART_STATS = [
   { key: "totalHeal", label: "Total Healed" }
 ];
 
+const CHAMPION_NAME_OVERRIDES = {
+  "Aurelion Sol": "AurelionSol",
+  "Bel'Veth": "Belveth",
+  "Cho'Gath": "Chogath",
+  "Dr. Mundo": "DrMundo",
+  "Jarvan IV": "JarvanIV",
+  "Kai'Sa": "Kaisa",
+  "Kha'Zix": "Khazix",
+  "Kog'Maw": "KogMaw",
+  "K'Sante": "KSante",
+  "LeBlanc": "Leblanc",
+  "Miss Fortune": "MissFortune",
+  "Nunu & Willump": "Nunu",
+  "Rek'Sai": "RekSai",
+  "Renata Glasc": "Renata",
+  "Tahm Kench": "TahmKench",
+  "Twisted Fate": "TwistedFate",
+  "Vel'Koz": "Velkoz",
+  "Wukong": "MonkeyKing",
+  "Xin Zhao": "XinZhao"
+};
+
 const state = {
   games: [],
   activeView: "totals",
@@ -57,6 +79,19 @@ function formatDuration(rawDuration, participants) {
   return `${minutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
 }
 
+function normalizeChampionAssetName(championName) {
+  const trimmed = String(championName || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (CHAMPION_NAME_OVERRIDES[trimmed]) {
+    return CHAMPION_NAME_OVERRIDES[trimmed];
+  }
+
+  return trimmed.replace(/[^A-Za-z0-9]/g, "");
+}
+
 function normalizeGame(rawGame, source, index) {
   const participants = Array.isArray(rawGame.participants) ? rawGame.participants : [];
   const normalizedParticipants = participants.map((participant) => {
@@ -66,13 +101,18 @@ function normalizeGame(rawGame, source, index) {
     const gold = coerceNumber(participant.GOLD_EARNED);
     const largestMultiKill = coerceNumber(participant.LARGEST_MULTI_KILL);
     const damageToChampions = coerceNumber(participant.TOTAL_DAMAGE_DEALT_TO_CHAMPIONS);
-    const totalDamageDealt = coerceNumber(participant.TOTAL_DAMAGE_DEALT) || damageToChampions;
+    const totalDamageDealt = damageToChampions;
     const totalDamageTaken = coerceNumber(participant.TOTAL_DAMAGE_TAKEN);
     const totalHeal = coerceNumber(participant.TOTAL_HEAL);
     const won = String(participant.WIN || "").toLowerCase() === "win";
+    const championName = participant.SKIN || participant.CHAMPION || participant.CHAMPION_NAME || "";
+    const championAssetName = normalizeChampionAssetName(championName);
 
     return {
       name: participant.RIOT_ID_GAME_NAME || "Unknown player",
+      championName,
+      championAssetName,
+      championIcon: championAssetName ? `assets/champion/${championAssetName}.png` : "",
       kills,
       deaths,
       assists,
@@ -133,7 +173,8 @@ function aggregatePlayers(games) {
           wins: 0,
           kills: 0,
           deaths: 0,
-          assists: 0
+          assists: 0,
+          champions: new Map()
         });
       }
 
@@ -143,6 +184,15 @@ function aggregatePlayers(games) {
       record.kills += player.kills;
       record.deaths += player.deaths;
       record.assists += player.assists;
+      if (player.championName) {
+        const championRecord = record.champions.get(player.championName) || {
+          championName: player.championName,
+          championIcon: player.championIcon,
+          count: 0
+        };
+        championRecord.count += 1;
+        record.champions.set(player.championName, championRecord);
+      }
     });
   });
 
@@ -181,6 +231,12 @@ function escapeHtml(value) {
 function getPlayerColor(playerName, playerNames) {
   const index = playerNames.indexOf(playerName);
   return PLAYER_COLORS[index % PLAYER_COLORS.length];
+}
+
+function getTopChampions(championMap) {
+  return [...championMap.values()]
+    .sort((left, right) => right.count - left.count || left.championName.localeCompare(right.championName))
+    .slice(0, 3);
 }
 
 function renderOverview(games, totals) {
@@ -231,7 +287,7 @@ function renderTotals(totals) {
   if (totals.length === 0) {
     elements.totalsTableBody.innerHTML = `
       <tr>
-        <td colspan="11">
+        <td colspan="12">
           <div class="empty-state">
             <h3>No cumulative stats yet</h3>
             <p>Load match files to compute totals and per-game averages.</p>
@@ -245,6 +301,17 @@ function renderTotals(totals) {
   elements.totalsTableBody.innerHTML = totals.map((player) => `
     <tr>
       <td>${escapeHtml(player.name)}</td>
+      <td>
+        <div class="champion-stack">
+          ${getTopChampions(player.champions).map((champion) => `
+            <div class="champion-pill" title="${escapeHtml(champion.championName)} (${champion.count})">
+              ${champion.championIcon ? `<img class="champion-pill-icon" src="${escapeHtml(champion.championIcon)}" alt="${escapeHtml(champion.championName)} icon">` : ""}
+              <span>${escapeHtml(champion.championName)}</span>
+              <span class="champion-pill-count">${champion.count}</span>
+            </div>
+          `).join("")}
+        </div>
+      </td>
       <td>${formatNumber(player.games)}</td>
       <td>${formatNumber(player.wins)}</td>
       <td>${formatNumber((player.wins / player.games) * 100, 1)}%</td>
@@ -281,8 +348,13 @@ function renderGames(games) {
         ${game.players.map((player) => `
           <article class="participant-row">
             <div>
-              <p class="participant-name">${escapeHtml(player.name)}</p>
-              <p class="participant-subtext">${formatNumber(player.damageToChampions)} damage to champions | ${formatNumber(player.gold)} gold earned</p>
+              <div class="participant-heading">
+                ${player.championIcon ? `<img class="champion-icon" src="${escapeHtml(player.championIcon)}" alt="${escapeHtml(player.championName)} icon">` : ""}
+                <div>
+                  <p class="participant-name">${escapeHtml(player.name)}</p>
+                  <p class="participant-subtext">${escapeHtml(player.championName || "Unknown champion")} | ${formatNumber(player.damageToChampions)} damage | ${formatNumber(player.gold)} gold</p>
+                </div>
+              </div>
             </div>
             <div class="kda-line">${player.kills} / ${player.deaths} / ${player.assists}</div>
           </article>
@@ -398,7 +470,9 @@ function renderChart(games) {
         return {
           name: player.name,
           color: player.color,
-          value: formatNumber(point.y)
+          value: formatNumber(point.y),
+          championIcon: game.players.find((entry) => entry.name === player.name)?.championIcon || "",
+          championName: game.players.find((entry) => entry.name === player.name)?.championName || ""
         };
       })
       .filter(Boolean);
@@ -414,7 +488,8 @@ function renderChart(games) {
     const tooltipContent = tooltipRows.map((row, rowIndex) => `
       <g transform="translate(${tooltipX + 14}, ${tooltipY + 34 + (rowIndex * 18)})">
         <circle r="4" cx="0" cy="-4" fill="${row.color}"></circle>
-        <text class="chart-shared-tooltip-line" x="10" y="0">${escapeHtml(row.name)}: ${row.value}</text>
+        ${row.championIcon ? `<image class="chart-tooltip-champion-icon" href="${escapeHtml(row.championIcon)}" x="10" y="-12" width="12" height="12" preserveAspectRatio="xMidYMid slice"></image>` : ""}
+        <text class="chart-shared-tooltip-line" x="${row.championIcon ? 28 : 10}" y="0">${escapeHtml(row.name)}: ${row.value}</text>
       </g>
     `).join("");
 

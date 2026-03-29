@@ -430,6 +430,13 @@ body::before {
   transition: border-color 160ms ease, transform 160ms ease, background 160ms ease;
 }
 
+.participant-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
 .game-card:hover .participant-row {
   border-color: rgba(240, 213, 156, 0.2);
 }
@@ -446,9 +453,53 @@ body::before {
   font-weight: 700;
 }
 
+.champion-icon,
+.champion-pill-icon {
+  display: block;
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.champion-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(200, 170, 110, 0.24);
+  flex: 0 0 auto;
+}
+
 .participant-subtext {
   margin: 4px 0 0;
   font-size: 0.85rem;
+}
+
+.champion-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.champion-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px 5px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(200, 170, 110, 0.16);
+  background: rgba(17, 31, 47, 0.6);
+  white-space: nowrap;
+}
+
+.champion-pill-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.champion-pill-count {
+  color: var(--gold-bright);
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 .kda-line {
@@ -591,6 +642,11 @@ body::before {
 .chart-shared-tooltip-line {
   fill: #fbf4e1;
   font-size: 11px;
+}
+
+.chart-tooltip-champion-icon {
+  overflow: hidden;
+  border-radius: 3px;
 }
 
 .chart-legend {

@@ -474,9 +474,9 @@ body::before {
 }
 
 .champion-stack {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 6px;
+  align-content: start;
 }
 
 .champion-pill {
@@ -488,6 +488,7 @@ body::before {
   border: 1px solid rgba(200, 170, 110, 0.16);
   background: rgba(17, 31, 47, 0.6);
   white-space: nowrap;
+  width: fit-content;
 }
 
 .champion-pill-icon {
@@ -500,6 +501,22 @@ body::before {
   color: var(--gold-bright);
   font-size: 0.8rem;
   font-weight: 700;
+}
+
+.kda-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.kda-cell-main {
+  color: #fbf4e1;
+  font-weight: 700;
+}
+
+.kda-cell-sub {
+  color: var(--muted);
+  font-size: 0.76rem;
+  white-space: nowrap;
 }
 
 .kda-line {
@@ -675,7 +692,7 @@ body::before {
 
 .stats-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 1160px;
   border-collapse: collapse;
 }
 

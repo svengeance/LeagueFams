@@ -79,6 +79,26 @@ function formatDuration(rawDuration, participants) {
   return `${minutes}m ${String(remainingSeconds).padStart(2, "0")}s`;
 }
 
+function formatGameDateLabel(gameDate) {
+  if (!gameDate) {
+    return "";
+  }
+
+  const parsed = new Date(gameDate);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  }).format(parsed);
+}
+
 function normalizeChampionAssetName(championName) {
   const trimmed = String(championName || "").trim();
   if (!trimmed) {
@@ -98,6 +118,9 @@ function normalizeGame(rawGame, source, index) {
   const gameTimestamp = parsedGameDate && !Number.isNaN(parsedGameDate.getTime())
     ? parsedGameDate.getTime()
     : 0;
+  const sourceGameId = rawGame.sourceGameId
+    ? coerceNumber(rawGame.sourceGameId)
+    : coerceNumber(String(rawGame.sourceReplayFile || "").replace(/^.*-/, "").replace(/\.rofl$/i, ""));
   const normalizedParticipants = participants.map((participant) => {
     const kills = coerceNumber(participant.CHAMPIONS_KILLED);
     const deaths = coerceNumber(participant.NUM_DEATHS);
@@ -136,8 +159,10 @@ function normalizeGame(rawGame, source, index) {
   return {
     id: `${source}-${index}`,
     source,
+    sourceGameId,
     gameDate: rawGame.gameDate || null,
     gameTimestamp,
+    gameDateLabel: formatGameDateLabel(rawGame.gameDate),
     result,
     durationLabel: formatDuration(rawGame.gameDuration, participants),
     durationSeconds: normalizedParticipants[0]
@@ -151,20 +176,20 @@ function filterEligibleGames(games) {
   return games.filter((game) => game.durationSeconds >= MINIMUM_GAME_SECONDS);
 }
 
-function sortGamesByDateDesc(games) {
+function sortGamesBySourceGameIdDesc(games) {
   return [...games].sort((left, right) => {
-    if (right.gameTimestamp !== left.gameTimestamp) {
-      return right.gameTimestamp - left.gameTimestamp;
+    if (right.sourceGameId !== left.sourceGameId) {
+      return right.sourceGameId - left.sourceGameId;
     }
 
     return left.source.localeCompare(right.source);
   });
 }
 
-function sortGamesByDateAsc(games) {
+function sortGamesBySourceGameIdAsc(games) {
   return [...games].sort((left, right) => {
-    if (left.gameTimestamp !== right.gameTimestamp) {
-      return left.gameTimestamp - right.gameTimestamp;
+    if (left.sourceGameId !== right.sourceGameId) {
+      return left.sourceGameId - right.sourceGameId;
     }
 
     return left.source.localeCompare(right.source);
@@ -200,6 +225,9 @@ function aggregatePlayers(games) {
           kills: 0,
           deaths: 0,
           assists: 0,
+          totalDamageDealt: 0,
+          totalDamageTaken: 0,
+          totalHeal: 0,
           champions: new Map()
         });
       }
@@ -210,6 +238,9 @@ function aggregatePlayers(games) {
       record.kills += player.kills;
       record.deaths += player.deaths;
       record.assists += player.assists;
+      record.totalDamageDealt += player.totalDamageDealt;
+      record.totalDamageTaken += player.totalDamageTaken;
+      record.totalHeal += player.totalHeal;
       if (player.championName) {
         const championRecord = record.champions.get(player.championName) || {
           championName: player.championName,
@@ -313,7 +344,7 @@ function renderTotals(totals) {
   if (totals.length === 0) {
     elements.totalsTableBody.innerHTML = `
       <tr>
-        <td colspan="12">
+        <td colspan="13">
           <div class="empty-state">
             <h3>No cumulative stats yet</h3>
             <p>Load match files to compute totals and per-game averages.</p>
@@ -344,31 +375,39 @@ function renderTotals(totals) {
       <td>${formatNumber(player.kills)}</td>
       <td>${formatNumber(player.deaths)}</td>
       <td>${formatNumber(player.assists)}</td>
-      <td>${formatNumber(average(player.kills, player.games), 1)}</td>
-      <td>${formatNumber(average(player.deaths, player.games), 1)}</td>
-      <td>${formatNumber(average(player.assists, player.games), 1)}</td>
+      <td>
+        <div class="kda-cell">
+          <div class="kda-cell-main">${formatNumber(player.kills)} / ${formatNumber(player.deaths)} / ${formatNumber(player.assists)}</div>
+          <div class="kda-cell-sub">Avg ${formatNumber(average(player.kills, player.games), 1)} / ${formatNumber(average(player.deaths, player.games), 1)} / ${formatNumber(average(player.assists, player.games), 1)}</div>
+        </div>
+      </td>
+      <td>${formatNumber(player.totalDamageDealt)}</td>
+      <td>${formatNumber(player.totalDamageTaken)}</td>
+      <td>${formatNumber(player.totalHeal)}</td>
       <td>${kda(player)}</td>
     </tr>
   `).join("");
 }
 
 function renderGames(games) {
-  if (games.length === 0) {
+  const cardGames = sortGamesBySourceGameIdDesc(games);
+
+  if (cardGames.length === 0) {
     elements.gamesContainer.innerHTML = elements.emptyStateTemplate.innerHTML;
     return;
   }
 
-  elements.gamesContainer.innerHTML = games.map((game, index) => `
+  elements.gamesContainer.innerHTML = cardGames.map((game, index) => `
     <article class="game-card">
       <header class="game-card-header">
         <div>
-          <h3 class="game-title">Game ${games.length - index}</h3>
+          <h3 class="game-title">Game ${cardGames.length - index}</h3>
           <div class="game-meta">
             <span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${escapeHtml(game.result)}</span>
             <span class="pill pill-neutral">${escapeHtml(game.durationLabel)}</span>
+            ${game.gameDateLabel ? `<span class="pill pill-neutral">${escapeHtml(game.gameDateLabel)}</span>` : ""}
           </div>
         </div>
-        <span class="pill pill-neutral">${escapeHtml(game.source)}</span>
       </header>
       <div class="participants-list">
         ${game.players.map((player) => `
@@ -428,7 +467,7 @@ function buildChartSeries(games, statKey) {
 }
 
 function renderChart(games) {
-  const chartGames = sortGamesByDateAsc(games);
+  const chartGames = sortGamesBySourceGameIdAsc(games);
 
   if (games.length === 0) {
     elements.chartStage.innerHTML = `
@@ -647,14 +686,14 @@ function setStatus(message, isError = false) {
 }
 
 function replaceGames(games, sourceLabel) {
-  state.games = sortGamesByDateDesc(games);
+  state.games = [...games];
   render();
   const gameLabel = state.games.length === 1 ? "game" : "games";
   setStatus(`Loaded ${state.games.length} ${gameLabel} from ${sourceLabel}.`);
 }
 
 function addGames(games, sourceLabel) {
-  state.games = sortGamesByDateDesc([...state.games, ...games]);
+  state.games = [...state.games, ...games];
   render();
   const gameLabel = games.length === 1 ? "game" : "games";
   setStatus(`Added ${games.length} ${gameLabel} from ${sourceLabel}. Total loaded games: ${state.games.length}.`);

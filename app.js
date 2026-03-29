@@ -161,6 +161,16 @@ function sortGamesByDateDesc(games) {
   });
 }
 
+function sortGamesByDateAsc(games) {
+  return [...games].sort((left, right) => {
+    if (left.gameTimestamp !== right.gameTimestamp) {
+      return left.gameTimestamp - right.gameTimestamp;
+    }
+
+    return left.source.localeCompare(right.source);
+  });
+}
+
 function extractGames(payload, source) {
   if (Array.isArray(payload)) {
     return payload.flatMap((item, index) => extractGames(item, `${source} - ${index + 1}`));
@@ -418,6 +428,8 @@ function buildChartSeries(games, statKey) {
 }
 
 function renderChart(games) {
+  const chartGames = sortGamesByDateAsc(games);
+
   if (games.length === 0) {
     elements.chartStage.innerHTML = `
       <div class="empty-state">
@@ -430,26 +442,26 @@ function renderChart(games) {
   }
 
   const statConfig = CHART_STATS.find((stat) => stat.key === state.activeChartStat) || CHART_STATS[0];
-  const series = buildChartSeries(games, statConfig.key);
+  const series = buildChartSeries(chartGames, statConfig.key);
   const allValues = series.flatMap((player) => player.points.map((point) => point.y).filter((value) => value !== null));
   const maxValue = Math.max(...allValues, 0);
   const yMax = niceMax(maxValue);
   const innerWidth = CHART_WIDTH - CHART_MARGIN.left - CHART_MARGIN.right;
   const innerHeight = CHART_HEIGHT - CHART_MARGIN.top - CHART_MARGIN.bottom;
-  const xStep = games.length > 1 ? innerWidth / (games.length - 1) : 0;
+  const xStep = chartGames.length > 1 ? innerWidth / (chartGames.length - 1) : 0;
   const tickCount = 5;
   const yTicks = Array.from({ length: tickCount + 1 }, (_, index) => (yMax / tickCount) * index);
-  const xLabelCount = Math.min(games.length, 6);
+  const xLabelCount = Math.min(chartGames.length, 6);
   const xIndices = new Set(
     Array.from({ length: xLabelCount }, (_, index) => {
       if (xLabelCount === 1) {
         return 0;
       }
-      return Math.round((index / (xLabelCount - 1)) * (games.length - 1));
+      return Math.round((index / (xLabelCount - 1)) * (chartGames.length - 1));
     })
   );
 
-  const xForIndex = (index) => CHART_MARGIN.left + (games.length > 1 ? index * xStep : innerWidth / 2);
+  const xForIndex = (index) => CHART_MARGIN.left + (chartGames.length > 1 ? index * xStep : innerWidth / 2);
   const yForValue = (value) => CHART_MARGIN.top + innerHeight - (value / yMax) * innerHeight;
 
   const gridLines = yTicks.map((tick) => {
@@ -460,7 +472,7 @@ function renderChart(games) {
     `;
   }).join("");
 
-  const xLabels = games.map((game, index) => {
+  const xLabels = chartGames.map((game, index) => {
     if (!xIndices.has(index)) {
       return "";
     }
@@ -470,12 +482,12 @@ function renderChart(games) {
     `;
   }).join("");
 
-  const hoverColumns = games.map((game, index) => {
+  const hoverColumns = chartGames.map((game, index) => {
     const centerX = xForIndex(index);
     const previousX = index === 0 ? CHART_MARGIN.left : xForIndex(index - 1);
-    const nextX = index === games.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : xForIndex(index + 1);
+    const nextX = index === chartGames.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : xForIndex(index + 1);
     const leftX = index === 0 ? CHART_MARGIN.left : centerX - ((centerX - previousX) / 2);
-    const rightX = index === games.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : centerX + ((nextX - centerX) / 2);
+    const rightX = index === chartGames.length - 1 ? CHART_WIDTH - CHART_MARGIN.right : centerX + ((nextX - centerX) / 2);
     const columnWidth = Math.max(rightX - leftX, 18);
     const tooltipRows = series
       .map((player) => {

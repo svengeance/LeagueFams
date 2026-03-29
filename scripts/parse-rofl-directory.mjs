@@ -6,18 +6,21 @@ import { ROFLReader } from "rofl-parser.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
+const dataRoot = path.join(projectRoot, "data");
 
 const inputDirArg = process.argv[2];
-const outputDirArg = process.argv[3];
+const collectionNameArg = process.argv[3];
 const summonerFilterArg = process.argv[4];
 
-if (!inputDirArg) {
-  console.error("Usage: npm run parse-rofl -- <input-directory> [output-directory] [summoner1,summoner2,...]");
+if (!inputDirArg || !collectionNameArg) {
+  console.error("Usage: npm run parse-rofl -- <input-directory> <collection-name> [summoner1,summoner2,...]");
   process.exit(1);
 }
 
 const inputDir = path.resolve(projectRoot, inputDirArg);
-const outputDir = path.resolve(projectRoot, outputDirArg || "data/generated");
+const collectionName = collectionNameArg.trim();
+const collectionDirectory = collectionName.replace(/[\\/]+/g, "-");
+const outputDir = path.join(dataRoot, collectionDirectory);
 const requestedSummonerNames = new Set(
   (summonerFilterArg || "")
     .split(",")
@@ -199,6 +202,8 @@ async function main() {
     process.exit(1);
   }
 
+  console.log(`Writing collection "${collectionName}" -> ${path.relative(projectRoot, outputDir)}`);
+
   if (requestedSummonerNames.size > 0) {
     console.log(`Filtering participants to: ${[...requestedSummonerNames].join(", ")}`);
   }
@@ -234,9 +239,30 @@ async function main() {
   }
 
   const sortedManifestEntries = manifestEntries.sort((left, right) => left.file.localeCompare(right.file));
-  const manifestPath = path.join(outputDir, "index.json");
-  await fs.writeFile(manifestPath, `${JSON.stringify(sortedManifestEntries, null, 2)}\n`, "utf8");
-  console.log(`Wrote manifest -> ${path.relative(projectRoot, manifestPath)}`);
+  const masterIndexPath = path.join(dataRoot, "index.json");
+  let existingCollections = [];
+
+  try {
+    const existingIndex = await fs.readFile(masterIndexPath, "utf8");
+    const parsedIndex = JSON.parse(existingIndex);
+    if (Array.isArray(parsedIndex)) {
+      existingCollections = parsedIndex;
+    }
+  } catch {
+    existingCollections = [];
+  }
+
+  const nextCollections = existingCollections.filter((entry) => entry.collection !== collectionName);
+  nextCollections.push({
+    collection: collectionName,
+    directory: collectionDirectory,
+    files: sortedManifestEntries,
+    updatedAt: new Date().toISOString()
+  });
+  nextCollections.sort((left, right) => left.collection.localeCompare(right.collection));
+
+  await fs.writeFile(masterIndexPath, `${JSON.stringify(nextCollections, null, 2)}\n`, "utf8");
+  console.log(`Wrote collection index -> ${path.relative(projectRoot, masterIndexPath)}`);
 
   console.log(`Converted ${convertedCount} replay file(s) into ${path.relative(projectRoot, outputDir)}.`);
 }

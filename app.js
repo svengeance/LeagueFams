@@ -39,13 +39,15 @@ const CHAMPION_NAME_OVERRIDES = {
 
 const state = {
   games: [],
+  collections: [],
+  activeCollection: null,
   activeView: "totals",
   activeChartStat: "kills"
 };
 
 const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
 const assetBaseUrl = new URL(".", scriptSource);
-const BUNDLED_INDEX_PATH = "data/generated/index.json";
+const COLLECTION_INDEX_PATH = "data/index.json";
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -54,6 +56,7 @@ const elements = {
   clearButton: document.querySelector("#clearButton"),
   statusText: document.querySelector("#statusText"),
   overviewCards: document.querySelector("#overviewCards"),
+  collectionChips: document.querySelector("#collectionChips"),
   totalsTableBody: document.querySelector("#totalsTableBody"),
   gamesContainer: document.querySelector("#gamesContainer"),
   chartStage: document.querySelector("#chartStage"),
@@ -294,6 +297,48 @@ function getTopChampions(championMap) {
   return [...championMap.values()]
     .sort((left, right) => right.count - left.count || left.championName.localeCompare(right.championName))
     .slice(0, 3);
+}
+
+function getCollectionHashValue() {
+  return decodeURIComponent(window.location.hash.replace(/^#/, "").trim());
+}
+
+function setCollectionHash(collectionName) {
+  const nextHash = `#${encodeURIComponent(collectionName)}`;
+  if (window.location.hash !== nextHash) {
+    window.location.hash = nextHash;
+  }
+}
+
+function renderCollectionChips() {
+  if (state.collections.length === 0) {
+    elements.collectionChips.innerHTML = "";
+    return;
+  }
+
+  elements.collectionChips.innerHTML = state.collections.map((collection) => `
+    <button
+      class="collection-chip ${state.activeCollection?.collection === collection.collection ? "is-active" : ""}"
+      type="button"
+      data-collection="${escapeHtml(collection.collection)}"
+    >
+      ${escapeHtml(collection.collection)}
+    </button>
+  `).join("");
+
+  [...elements.collectionChips.querySelectorAll(".collection-chip")].forEach((button) => {
+    button.addEventListener("click", () => {
+      const collection = state.collections.find((entry) => entry.collection === button.dataset.collection);
+      if (!collection) {
+        return;
+      }
+
+      state.activeCollection = collection;
+      renderCollectionChips();
+      setCollectionHash(collection.collection);
+      loadCollectionGames(collection);
+    });
+  });
 }
 
 function renderOverview(games, totals) {
@@ -672,6 +717,7 @@ function renderChartStatButtons() {
 
 function render() {
   const totals = aggregatePlayers(state.games);
+  renderCollectionChips();
   renderChartStatButtons();
   renderOverview(state.games, totals);
   renderTotals(totals);
@@ -729,27 +775,47 @@ async function loadFiles(fileList) {
 }
 
 async function loadBundledGames() {
-  const loadedGames = [];
-  const indexUrl = new URL(BUNDLED_INDEX_PATH, assetBaseUrl);
-
   try {
+    const indexUrl = new URL(COLLECTION_INDEX_PATH, assetBaseUrl);
     const indexResponse = await fetch(indexUrl, { cache: "no-store" });
     if (!indexResponse.ok) {
       throw new Error(`Request failed with status ${indexResponse.status}`);
     }
 
-    const manifest = await indexResponse.json();
-    if (!Array.isArray(manifest)) {
-      throw new Error("Bundled data index was not an array.");
+    const collections = await indexResponse.json();
+    if (!Array.isArray(collections)) {
+      throw new Error("Collection index was not an array.");
     }
 
-    for (const entry of manifest) {
+    state.collections = collections;
+    const requestedCollectionName = getCollectionHashValue();
+    const selectedCollection = state.collections.find((entry) => entry.collection === requestedCollectionName) || state.collections[0];
+
+    if (!selectedCollection) {
+      setStatus(`No collections were found in ${COLLECTION_INDEX_PATH}.`, true);
+      render();
+      return;
+    }
+
+    state.activeCollection = selectedCollection;
+    render();
+    await loadCollectionGames(selectedCollection);
+  } catch (error) {
+    setStatus(`Could not load collection index from ${COLLECTION_INDEX_PATH}. ${error.message}`, true);
+  }
+}
+
+async function loadCollectionGames(collection, shouldUpdateHash = true) {
+  const loadedGames = [];
+
+  try {
+    for (const entry of collection.files || []) {
       const relativeFile = typeof entry === "string" ? entry : entry?.file;
       if (!relativeFile) {
         continue;
       }
 
-      const fileUrl = new URL(relativeFile, indexUrl);
+      const fileUrl = new URL(`data/${collection.directory}/${relativeFile}`, assetBaseUrl);
       const response = await fetch(fileUrl, { cache: "no-store" });
       if (!response.ok) {
         throw new Error(`Failed loading ${relativeFile}: status ${response.status}`);
@@ -760,16 +826,22 @@ async function loadBundledGames() {
       loadedGames.push(...games);
     }
   } catch (error) {
-    setStatus(`Could not load bundled data index from ${BUNDLED_INDEX_PATH}. ${error.message}`, true);
+    setStatus(`Could not load collection "${collection.collection}". ${error.message}`, true);
     return;
   }
 
   if (loadedGames.length === 0) {
-    setStatus(`No eligible bundled games were found in ${BUNDLED_INDEX_PATH}.`, true);
+    state.games = [];
+    render();
+    setStatus(`Collection "${collection.collection}" does not contain any eligible games.`, true);
     return;
   }
 
-  replaceGames(loadedGames, `${BUNDLED_INDEX_PATH}`);
+  state.activeCollection = collection;
+  if (shouldUpdateHash) {
+    setCollectionHash(collection.collection);
+  }
+  replaceGames(loadedGames, collection.collection);
 }
 
 function installDropzone() {
@@ -797,6 +869,11 @@ elements.fileInput.addEventListener("change", (event) => {
 });
 
 elements.reloadBundledButton.addEventListener("click", () => {
+  if (state.activeCollection) {
+    loadCollectionGames(state.activeCollection);
+    return;
+  }
+
   loadBundledGames();
 });
 
@@ -811,6 +888,18 @@ elements.tabButtons.forEach((button) => {
     state.activeView = button.dataset.view;
     renderTabs();
   });
+});
+
+window.addEventListener("hashchange", () => {
+  const requestedCollectionName = getCollectionHashValue();
+  const nextCollection = state.collections.find((entry) => entry.collection === requestedCollectionName);
+  if (!nextCollection || nextCollection.collection === state.activeCollection?.collection) {
+    return;
+  }
+
+  state.activeCollection = nextCollection;
+  renderCollectionChips();
+  loadCollectionGames(nextCollection, false);
 });
 
 installDropzone();

@@ -160,5 +160,23 @@
     "gameDate": "2026-03-29T02:37:54.153Z",
     "gameDuration": 1023709,
     "sourceReplayFile": "NA1-5522952545.rofl"
+  },
+  {
+    "file": "2026-03-28-11-05-PM-23m-10s.json",
+    "gameDate": "2026-03-29T03:05:52.003Z",
+    "gameDuration": 1390141,
+    "sourceReplayFile": "NA1-5522975489.rofl"
+  },
+  {
+    "file": "2026-03-28-11-23-PM-13m-51s.json",
+    "gameDate": "2026-03-29T03:23:11.577Z",
+    "gameDuration": 830997,
+    "sourceReplayFile": "NA1-5523005009.rofl"
+  },
+  {
+    "file": "2026-03-29-12-39-AM-23m-06s.json",
+    "gameDate": "2026-03-29T04:39:54.189Z",
+    "gameDuration": 1385971,
+    "sourceReplayFile": "NA1-5523073054.rofl"
   }
 ]

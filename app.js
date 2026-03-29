@@ -23,6 +23,7 @@ const state = {
 
 const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
 const assetBaseUrl = new URL(".", scriptSource);
+const BUNDLED_INDEX_PATH = "data/generated/index.json";
 
 const elements = {
   fileInput: document.querySelector("#fileInput"),
@@ -587,62 +588,46 @@ async function loadFiles(fileList) {
 
 async function loadBundledGames() {
   const loadedGames = [];
-  let index = 1;
+  const indexUrl = new URL(BUNDLED_INDEX_PATH, assetBaseUrl);
 
-  while (true) {
-    const relativeSource = `data/game${index}.json`;
-    const sourceUrl = new URL(relativeSource, assetBaseUrl);
+  try {
+    const indexResponse = await fetch(indexUrl, { cache: "no-store" });
+    if (!indexResponse.ok) {
+      throw new Error(`Request failed with status ${indexResponse.status}`);
+    }
 
-    try {
-      const response = await fetch(sourceUrl, { cache: "no-store" });
+    const manifest = await indexResponse.json();
+    if (!Array.isArray(manifest)) {
+      throw new Error("Bundled data index was not an array.");
+    }
 
-      if (response.status === 404) {
-        break;
-      }
-
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
-      }
-
-      const contentType = response.headers.get("content-type") || "";
-      if (!contentType.includes("application/json")) {
-        if (loadedGames.length > 0) {
-          break;
-        }
-        throw new Error("Bundled data response was not JSON.");
-      }
-
-      const payload = await response.json();
-      const games = filterEligibleGames(extractGames(payload, `game${index}.json`));
-
-      if (games.length === 0) {
-        index += 1;
+    for (const entry of manifest) {
+      const relativeFile = typeof entry === "string" ? entry : entry?.file;
+      if (!relativeFile) {
         continue;
       }
 
+      const fileUrl = new URL(relativeFile, indexUrl);
+      const response = await fetch(fileUrl, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`Failed loading ${relativeFile}: status ${response.status}`);
+      }
+
+      const payload = await response.json();
+      const games = filterEligibleGames(extractGames(payload, relativeFile));
       loadedGames.push(...games);
-      index += 1;
-    } catch (error) {
-      if (loadedGames.length > 0 && error instanceof SyntaxError) {
-        break;
-      }
-
-      if (loadedGames.length > 0) {
-        replaceGames(loadedGames, `bundled data files 1-${index - 1}`);
-        return;
-      }
-
-      setStatus(`Could not load bundled data from ${relativeSource}. ${error.message}`, true);
-      return;
     }
-  }
-
-  if (loadedGames.length === 0) {
-    setStatus("No bundled data files were found under data/.", true);
+  } catch (error) {
+    setStatus(`Could not load bundled data index from ${BUNDLED_INDEX_PATH}. ${error.message}`, true);
     return;
   }
 
-  replaceGames(loadedGames, `bundled data files 1-${Math.max(index - 1, 0)}`);
+  if (loadedGames.length === 0) {
+    setStatus(`No eligible bundled games were found in ${BUNDLED_INDEX_PATH}.`, true);
+    return;
+  }
+
+  replaceGames(loadedGames, `${BUNDLED_INDEX_PATH}`);
 }
 
 function installDropzone() {

@@ -4,7 +4,7 @@ LeagueFams is a lightweight client-side dashboard for exploring League match JSO
 
 It currently supports:
 
-- Automatically loading bundled match files from `data/game1.json`, `data/game2.json`, and so on until the next file returns `404`
+- Automatically loading bundled match files listed in `data/generated/index.json`
 - Uploading one or more `.json` files in the browser
 - Rendering one card per game with result, duration, and player K / D / A
 - Aggregating cumulative player totals and per-game averages
@@ -28,12 +28,11 @@ This project is a small static frontend with a Vite-powered dev server.
 
 ## Bundled Data
 
-The app currently boots by requesting:
+The app now boots by requesting [data/generated/index.json](./data/generated/index.json), then loading every JSON file listed in that manifest.
 
-- `data/game1.json`
-- `data/game2.json`
-- `data/game3.json`
-- and so on until a request returns `404`
+The replay conversion script also writes that manifest automatically when you run:
+
+- `npm run parse-rofl -- <input-directory>`
 
 The repository also includes the original reference sample at [test/league-sample-data.json](./test/league-sample-data.json).
 

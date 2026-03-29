@@ -6,12 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "parse-rofl": "node ./scripts/parse-rofl-directory.mjs"
   },
   "devDependencies": {
     "vite": "^7.1.0"
   },
   "optionalDependencies": {
     "@rollup/rollup-win32-x64-msvc": "4.60.0"
+  },
+  "dependencies": {
+    "rofl-parser.js": "^1.1.1"
   }
 }

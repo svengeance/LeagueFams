@@ -94,6 +94,10 @@ function normalizeChampionAssetName(championName) {
 
 function normalizeGame(rawGame, source, index) {
   const participants = Array.isArray(rawGame.participants) ? rawGame.participants : [];
+  const parsedGameDate = rawGame.gameDate ? new Date(rawGame.gameDate) : null;
+  const gameTimestamp = parsedGameDate && !Number.isNaN(parsedGameDate.getTime())
+    ? parsedGameDate.getTime()
+    : 0;
   const normalizedParticipants = participants.map((participant) => {
     const kills = coerceNumber(participant.CHAMPIONS_KILLED);
     const deaths = coerceNumber(participant.NUM_DEATHS);
@@ -132,6 +136,8 @@ function normalizeGame(rawGame, source, index) {
   return {
     id: `${source}-${index}`,
     source,
+    gameDate: rawGame.gameDate || null,
+    gameTimestamp,
     result,
     durationLabel: formatDuration(rawGame.gameDuration, participants),
     durationSeconds: normalizedParticipants[0]
@@ -143,6 +149,16 @@ function normalizeGame(rawGame, source, index) {
 
 function filterEligibleGames(games) {
   return games.filter((game) => game.durationSeconds >= MINIMUM_GAME_SECONDS);
+}
+
+function sortGamesByDateDesc(games) {
+  return [...games].sort((left, right) => {
+    if (right.gameTimestamp !== left.gameTimestamp) {
+      return right.gameTimestamp - left.gameTimestamp;
+    }
+
+    return left.source.localeCompare(right.source);
+  });
 }
 
 function extractGames(payload, source) {
@@ -336,7 +352,7 @@ function renderGames(games) {
     <article class="game-card">
       <header class="game-card-header">
         <div>
-          <h3 class="game-title">Game ${index + 1}</h3>
+          <h3 class="game-title">Game ${games.length - index}</h3>
           <div class="game-meta">
             <span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${escapeHtml(game.result)}</span>
             <span class="pill pill-neutral">${escapeHtml(game.durationLabel)}</span>
@@ -619,14 +635,14 @@ function setStatus(message, isError = false) {
 }
 
 function replaceGames(games, sourceLabel) {
-  state.games = games;
+  state.games = sortGamesByDateDesc(games);
   render();
-  const gameLabel = games.length === 1 ? "game" : "games";
-  setStatus(`Loaded ${games.length} ${gameLabel} from ${sourceLabel}.`);
+  const gameLabel = state.games.length === 1 ? "game" : "games";
+  setStatus(`Loaded ${state.games.length} ${gameLabel} from ${sourceLabel}.`);
 }
 
 function addGames(games, sourceLabel) {
-  state.games = [...state.games, ...games];
+  state.games = sortGamesByDateDesc([...state.games, ...games]);
   render();
   const gameLabel = games.length === 1 ? "game" : "games";
   setStatus(`Added ${games.length} ${gameLabel} from ${sourceLabel}. Total loaded games: ${state.games.length}.`);

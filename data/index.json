@@ -227,5 +227,108 @@
       }
     ],
     "updatedAt": "2026-03-29T07:39:13.951Z"
+  },
+  {
+    "collection": "franks-2026-fall",
+    "directory": "franks-2026-fall",
+    "files": [
+      {
+        "file": "2026-11-14-01-30-AM-12m-47s.json",
+        "gameDate": "2026-11-14T06:30:29.425Z",
+        "gameDuration": 767196,
+        "sourceReplayFile": "NA1-5679372683.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-13m-56s.json",
+        "gameDate": "2026-11-14T06:30:32.747Z",
+        "gameDuration": 835831,
+        "sourceReplayFile": "NA1-5679419675.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-14m-36s.json",
+        "gameDate": "2026-11-14T06:30:36.635Z",
+        "gameDuration": 876483,
+        "sourceReplayFile": "NA1-5679493389.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-14m-44s.json",
+        "gameDate": "2026-11-14T06:30:30.257Z",
+        "gameDuration": 883938,
+        "sourceReplayFile": "NA1-5679391389.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-14m-48s.json",
+        "gameDate": "2026-11-14T06:30:31.947Z",
+        "gameDuration": 888381,
+        "sourceReplayFile": "NA1-5679410094.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-15m-48s.json",
+        "gameDate": "2026-11-14T06:30:22.886Z",
+        "gameDuration": 948003,
+        "sourceReplayFile": "NA1-5679291890.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-15m-50s.json",
+        "gameDate": "2026-11-14T06:30:20.002Z",
+        "gameDuration": 949889,
+        "sourceReplayFile": "NA1-5679253887.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-16m-29s.json",
+        "gameDate": "2026-11-14T06:30:28.673Z",
+        "gameDuration": 988577,
+        "sourceReplayFile": "NA1-5679353996.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-18m-05s.json",
+        "gameDate": "2026-11-14T06:30:25.833Z",
+        "gameDuration": 1084794,
+        "sourceReplayFile": "NA1-5679311370.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-18m-20s.json",
+        "gameDate": "2026-11-14T06:30:24.387Z",
+        "gameDuration": 1100096,
+        "sourceReplayFile": "NA1-5679300124.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-19m-00s.json",
+        "gameDate": "2026-11-14T06:30:26.864Z",
+        "gameDuration": 1139890,
+        "sourceReplayFile": "NA1-5679327577.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-19m-53s.json",
+        "gameDate": "2026-11-14T06:30:37.718Z",
+        "gameDuration": 1193101,
+        "sourceReplayFile": "NA1-5679503612.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-20m-21s.json",
+        "gameDate": "2026-11-14T06:30:21.447Z",
+        "gameDuration": 1221050,
+        "sourceReplayFile": "NA1-5679268217.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-20m-22s.json",
+        "gameDate": "2026-11-14T06:30:33.795Z",
+        "gameDuration": 1222360,
+        "sourceReplayFile": "NA1-5679443114.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-20m-54s.json",
+        "gameDate": "2026-11-14T06:30:35.762Z",
+        "gameDuration": 1253518,
+        "sourceReplayFile": "NA1-5679462517.rofl"
+      },
+      {
+        "file": "2026-11-14-01-30-AM-23m-45s.json",
+        "gameDate": "2026-11-14T06:30:18.754Z",
+        "gameDuration": 1424854,
+        "sourceReplayFile": "NA1-5679180633.rofl"
+      }
+    ],
+    "updatedAt": "2026-11-14T06:36:23.745Z"
   }
 ]

@@ -459,7 +459,7 @@ body::before {
 
 .games-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -532,6 +532,112 @@ body::before {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(200, 170, 110, 0.18);
+}
+
+.match-comparison {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(5, 12, 21, 0.56);
+}
+
+.match-comparison-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+  color: #77bcf4;
+}
+
+.match-comparison-labels span:last-child {
+  color: #f3919c;
+  text-align: right;
+}
+
+.match-metric-values {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-metric-values span:nth-child(2) {
+  color: var(--muted);
+}
+
+.match-metric-values span:last-child {
+  text-align: right;
+}
+
+.match-bar-pair,
+.match-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.match-bar-track {
+  display: flex;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.match-bar-track:first-child {
+  justify-content: flex-end;
+}
+
+.match-bar-fill {
+  border-radius: inherit;
+  background: #77bcf4;
+}
+
+.match-bar-track:last-child .match-bar-fill {
+  background: #f3919c;
+}
+
+.match-teams {
+  gap: 14px;
+}
+
+.match-team {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.match-team:only-child {
+  grid-column: 1 / -1;
+}
+
+.match-team-winner {
+  border-color: rgba(53, 208, 154, 0.55);
+  background: rgba(53, 208, 154, 0.06);
+}
+
+.match-team-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin-bottom: 10px;
+}
+
+.match-team-header h4 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.participant-heading > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .participants-list {
@@ -888,6 +994,7 @@ body::before {
     white-space: normal;
   }
 
+  .match-teams,
   .participant-row {
     grid-template-columns: 1fr;
   }

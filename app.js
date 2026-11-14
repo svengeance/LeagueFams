@@ -15,6 +15,13 @@ const CHART_STATS = [
   { key: "totalHeal", label: "Total Healed" }
 ];
 
+const MATCH_COMPARISON_STATS = [
+  { label: "Champion damage", field: "TOTAL_DAMAGE_DEALT_TO_CHAMPIONS" },
+  { label: "Gold", field: "GOLD_EARNED" },
+  { label: "Turret damage", field: "TOTAL_DAMAGE_DEALT_TO_TURRETS" }
+];
+const MATCH_TEAM_LABELS = new Map([["100", "Blue team"], ["200", "Red team"]]);
+
 const CHAMPION_NAME_OVERRIDES = {
   "Aurelion Sol": "AurelionSol",
   "Bel'Veth": "Belveth",
@@ -457,6 +464,99 @@ function renderTotals(totals) {
   `).join("");
 }
 
+function getMatchTeams(players) {
+  const teams = new Map();
+
+  for (const player of players) {
+    const teamId = String(player.raw.TEAM ?? "").trim();
+    if (!teams.has(teamId)) {
+      teams.set(teamId, []);
+    }
+    teams.get(teamId).push(player);
+  }
+
+  return [...teams].sort(([leftId], [rightId]) => {
+    if (!leftId || !rightId) {
+      return Number(!leftId) - Number(!rightId);
+    }
+    return leftId.localeCompare(rightId, undefined, { numeric: true });
+  }).map(([id, roster]) => ({
+    id,
+    label: MATCH_TEAM_LABELS.get(id) ?? (id ? `Team ${id}` : "Unassigned players"),
+    roster,
+    won: Boolean(id) && roster.some((player) => player.won)
+  }));
+}
+
+function getMatchMetricTotal(team, field) {
+  const values = team.roster.map((player) => player.raw[field]);
+  if (values.some((value) => value == null || String(value).trim() === "" || !Number.isFinite(Number(value)))) {
+    return null;
+  }
+  return values.reduce((sum, value) => sum + Number(value), 0);
+}
+
+function renderMatchComparison(teams) {
+  if (teams.length !== 2 || teams.some((team) => !team.id)) {
+    return "";
+  }
+
+  const [left, right] = teams;
+  return `
+    <section class="match-comparison" aria-label="Team comparison">
+      <div class="match-comparison-labels" aria-hidden="true">
+        <span>${escapeHtml(left.label)}</span>
+        <span>${escapeHtml(right.label)}</span>
+      </div>
+      ${MATCH_COMPARISON_STATS.map(({ label, field }) => {
+        const leftTotal = getMatchMetricTotal(left, field);
+        const rightTotal = getMatchMetricTotal(right, field);
+        const max = Math.max(leftTotal ?? 0, rightTotal ?? 0, 1);
+        const leftValue = leftTotal === null ? "N/A" : formatNumber(leftTotal);
+        const rightValue = rightTotal === null ? "N/A" : formatNumber(rightTotal);
+        return `
+          <div class="match-metric" role="group" aria-label="${escapeHtml(`${label}, ${left.label}: ${leftValue}, ${right.label}: ${rightValue}`)}">
+            <div class="match-metric-values" aria-hidden="true">
+              <span>${leftValue}</span>
+              <span>${label}</span>
+              <span>${rightValue}</span>
+            </div>
+            <div class="match-bar-pair" aria-hidden="true">
+              <div class="match-bar-track"><div class="match-bar-fill" style="width: ${(leftTotal ?? 0) / max * 100}%"></div></div>
+              <div class="match-bar-track"><div class="match-bar-fill" style="width: ${(rightTotal ?? 0) / max * 100}%"></div></div>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </section>
+  `;
+}
+
+function renderMatchRoster(team) {
+  return `
+    <section class="match-team${team.won ? " match-team-winner" : ""}">
+      <header class="match-team-header">
+        <h4>${escapeHtml(team.label)}</h4>
+        ${team.won ? '<span class="pill pill-win">Winner</span>' : ""}
+      </header>
+      <div class="participants-list">
+        ${team.roster.map((player) => `
+          <article class="participant-row">
+            <div class="participant-heading">
+              ${player.championIcon ? `<img class="champion-icon" src="${escapeHtml(player.championIcon)}" alt="" loading="lazy">` : ""}
+              <div>
+                <p class="participant-name">${escapeHtml(player.name)}</p>
+                <p class="participant-subtext">${escapeHtml(player.championName || "Unknown champion")} | ${formatNumber(player.damageToChampions)} damage | ${formatNumber(player.gold)} gold</p>
+              </div>
+            </div>
+            <div class="kda-line">${player.kills} / ${player.deaths} / ${player.assists}</div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderGames(games) {
   const cardGames = sortGamesBySourceGameIdDesc(games);
 
@@ -465,36 +565,28 @@ function renderGames(games) {
     return;
   }
 
-  elements.gamesContainer.innerHTML = cardGames.map((game, index) => `
-    <article class="game-card">
-      <header class="game-card-header">
-        <div>
-          <h3 class="game-title">Game ${cardGames.length - index}</h3>
-          <div class="game-meta">
-            <span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${escapeHtml(game.result)}</span>
-            <span class="pill pill-neutral">${escapeHtml(game.durationLabel)}</span>
-            ${game.gameDateLabel ? `<span class="pill pill-neutral">${escapeHtml(game.gameDateLabel)}</span>` : ""}
-          </div>
-        </div>
-      </header>
-      <div class="participants-list">
-        ${game.players.map((player) => `
-          <article class="participant-row">
-            <div>
-              <div class="participant-heading">
-                ${player.championIcon ? `<img class="champion-icon" src="${escapeHtml(player.championIcon)}" alt="${escapeHtml(player.championName)} icon">` : ""}
-                <div>
-                  <p class="participant-name">${escapeHtml(player.name)}</p>
-                  <p class="participant-subtext">${escapeHtml(player.championName || "Unknown champion")} | ${formatNumber(player.damageToChampions)} damage | ${formatNumber(player.gold)} gold</p>
-                </div>
-              </div>
+  elements.gamesContainer.innerHTML = cardGames.map((game, index) => {
+    const teams = getMatchTeams(game.players);
+    const isUnassigned = teams.length === 1 && !teams[0].id;
+    return `
+      <article class="game-card">
+        <header class="game-card-header">
+          <div>
+            <h3 class="game-title">Game ${cardGames.length - index}</h3>
+            <div class="game-meta">
+              ${isUnassigned ? `<span class="pill ${game.result === "Victory" ? "pill-win" : "pill-loss"}">${game.result}</span>` : ""}
+              <span class="pill pill-neutral">${escapeHtml(game.durationLabel)}</span>
+              ${game.gameDateLabel ? `<span class="pill pill-neutral">${escapeHtml(game.gameDateLabel)}</span>` : ""}
             </div>
-            <div class="kda-line">${player.kills} / ${player.deaths} / ${player.assists}</div>
-          </article>
-        `).join("")}
-      </div>
-    </article>
-  `).join("");
+          </div>
+        </header>
+        ${renderMatchComparison(teams)}
+        <div class="match-teams">
+          ${teams.map(renderMatchRoster).join("")}
+        </div>
+      </article>
+    `;
+  }).join("");
 }
 
 function niceMax(value) {

@@ -2,6 +2,7 @@
   {
     "collection": "fams-night-march-2026",
     "directory": "fams-night-march-2026",
+    "trackedPlayers": ["Stibbs", "Nox", "Plzz", "StarForgeR"],
     "files": [
       {
         "file": "2026-03-28-02-41-AM-18m-02s.json",
@@ -231,6 +232,9 @@
   {
     "collection": "franks-2026-fall",
     "directory": "franks-2026-fall",
+    "trackedPlayers": ["Stibbs", "Nox", "Plzz", "StarForgeR"],
+    "background": "assets/backgrounds/aram-nature.png",
+    "backgroundWebp": "assets/backgrounds/aram-nature.webp",
     "files": [
       {
         "file": "2026-11-14-01-30-AM-12m-47s.json",

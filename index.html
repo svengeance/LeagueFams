@@ -10,7 +10,11 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div class="page-shell">
+  <div class="app-backdrop" aria-hidden="true">
+    <div class="app-backdrop-art" id="backdropArt"></div>
+  </div>
+
+  <div class="page-shell" id="appScroll" data-view="totals" role="region" aria-label="Match dashboard" tabindex="0">
     <header class="topbar">
       <div class="topbar-brand">
         <p class="eyebrow">LeagueFams</p>
@@ -41,7 +45,7 @@
           <button id="clearButton" class="button button-secondary" type="button">Clear table</button>
         </div>
 
-        <p class="helper-text toolbar-status" id="statusText">No files loaded yet.</p>
+        <p class="helper-text toolbar-status" id="statusText" role="status">No files loaded yet.</p>
       </div>
     </header>
 
@@ -60,9 +64,9 @@
             <p class="section-kicker">Cumulative</p>
             <h2>Player Totals & Averages</h2>
           </div>
-          <p class="section-note">Totals stack across everything loaded in-session, with per-game averages for quick comparison.</p>
+          <p class="section-note">Totals and per-game averages use the loaded matches for each player shown.</p>
         </div>
-        <div class="table-wrap">
+        <div class="table-wrap panel-scroll" tabindex="0" role="region" aria-label="Player stats table">
           <table class="stats-table">
             <thead>
               <tr>
@@ -108,9 +112,9 @@
             <p class="section-kicker">Games</p>
             <h2>Match Cards</h2>
           </div>
-          <p class="section-note">Compare team totals and see each player's K / D / A.</p>
+          <p class="section-note">Compare both teams and see K / D / A for each player in the replay.</p>
         </div>
-        <div id="gamesContainer" class="games-grid"></div>
+        <div id="gamesContainer" class="games-grid panel-scroll" tabindex="0" role="region" aria-label="Match card list"></div>
       </section>
     </main>
   </div>
@@ -122,6 +126,6 @@
     </div>
   </template>
 
-  <script src="./app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

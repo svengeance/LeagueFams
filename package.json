@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build --base ./ && node ./scripts/copy-dashboard-assets.mjs",
     "preview": "vite preview",
     "parse-rofl": "node ./scripts/parse-rofl-directory.mjs"
   },

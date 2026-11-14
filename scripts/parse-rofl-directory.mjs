@@ -252,8 +252,10 @@ async function main() {
     existingCollections = [];
   }
 
+  const existingCollection = existingCollections.find((entry) => entry.collection === collectionName);
   const nextCollections = existingCollections.filter((entry) => entry.collection !== collectionName);
   nextCollections.push({
+    ...existingCollection,
     collection: collectionName,
     directory: collectionDirectory,
     files: sortedManifestEntries,

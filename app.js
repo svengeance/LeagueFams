@@ -52,11 +52,18 @@ const state = {
   activeChartStat: "kills"
 };
 
-const scriptSource = document.querySelector('script[src$="app.js"]')?.src || window.location.href;
-const assetBaseUrl = new URL(".", scriptSource);
+const assetBaseUrl = new URL(".", document.baseURI);
 const COLLECTION_INDEX_PATH = "data/index.json";
+const MAX_BACKDROP_OFFSET = 48;
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+let backgroundSources = "";
+let collectionLoad;
+let pendingCollection;
 
 const elements = {
+  appScroll: document.querySelector("#appScroll"),
+  backdropArt: document.querySelector("#backdropArt"),
   fileInput: document.querySelector("#fileInput"),
   dropzone: document.querySelector("#dropzone"),
   reloadBundledButton: document.querySelector("#reloadBundledButton"),
@@ -313,11 +320,90 @@ function getCollectionHashValue() {
   return decodeURIComponent(window.location.hash.replace(/^#/, "").trim());
 }
 
-function setCollectionHash(collectionName) {
-  const nextHash = `#${encodeURIComponent(collectionName)}`;
+function setCollectionHash(collectionName, replace = false) {
+  const nextHash = collectionName ? `#${encodeURIComponent(collectionName)}` : "";
   if (window.location.hash !== nextHash) {
-    window.location.hash = nextHash;
+    const url = new URL(window.location.href);
+    url.hash = nextHash;
+    window.history[replace ? "replaceState" : "pushState"](null, "", url);
   }
+}
+
+function fade(element, from, to = 1, duration = 180) {
+  element?.getAnimations().forEach((animation) => animation.cancel());
+  if (reduceMotion.matches || !element?.animate) {
+    return null;
+  }
+  return element.animate([{ opacity: from }, { opacity: to }], { duration, easing: "ease-out" });
+}
+
+function showCollectionBackground(image) {
+  const layer = elements.backdropArt;
+  const previous = layer.lastElementChild;
+  previous?.getAnimations().forEach((animation) => animation.cancel());
+  layer.replaceChildren(...[previous, image].filter(Boolean));
+  const animation = image ? fade(image, 0, 1, 260) : fade(previous, 1, 0, 260);
+  if (animation) {
+    animation.onfinish = () => previous?.remove();
+  } else {
+    previous?.remove();
+  }
+}
+
+async function updateCollectionBackground(collection) {
+  const paths = [collection?.backgroundWebp, collection?.background]
+    .filter((path) => typeof path === "string" && path.trim())
+    .map((path) => path.trim());
+  const sources = paths.join("\n");
+  if (sources === backgroundSources) {
+    return;
+  }
+
+  backgroundSources = sources;
+  for (const path of paths) {
+    if (sources !== backgroundSources) {
+      return;
+    }
+    const image = new Image();
+    image.alt = "";
+    try {
+      image.src = new URL(path, assetBaseUrl).href;
+      await image.decode();
+    } catch {
+      continue;
+    }
+
+    if (sources === backgroundSources) {
+      showCollectionBackground(image);
+    }
+    return;
+  }
+  if (sources === backgroundSources) {
+    showCollectionBackground(null);
+  }
+}
+
+function installBackdropParallax() {
+  let frame = 0;
+  let lastOffset = 0;
+
+  function scheduleUpdate() {
+    if (frame) {
+      return;
+    }
+
+    frame = window.requestAnimationFrame(() => {
+      frame = 0;
+      const offset = reduceMotion.matches ? 0 : Math.min(MAX_BACKDROP_OFFSET, Math.max(0, elements.gamesContainer.scrollTop) * 0.08);
+      if (offset !== lastOffset) {
+        elements.backdropArt.style.setProperty("--backdrop-offset", `${-offset}px`);
+        lastOffset = offset;
+      }
+    });
+  }
+
+  elements.gamesContainer.addEventListener("scroll", scheduleUpdate, { passive: true });
+  reduceMotion.addEventListener("change", scheduleUpdate);
 }
 
 function closeCollectionPicker() {
@@ -362,23 +448,26 @@ function renderCollectionSelect() {
         return;
       }
 
-      state.activeCollection = nextCollection;
-      renderCollectionSelect();
       closeCollectionPicker();
-      setCollectionHash(nextCollection.collection);
-      loadCollectionGames(nextCollection, false);
+      elements.collectionPickerButton.focus({ preventScroll: true });
+      loadCollectionGames(nextCollection);
     });
   });
 }
 
-function renderOverview(games, totals) {
+function renderOverview(games, totals, trackedNames, isTrackedPlayer) {
   if (games.length === 0) {
     elements.overviewCards.innerHTML = "";
     return;
   }
 
-  const totalPlayers = new Set(games.flatMap((game) => game.players.map((player) => player.name))).size;
-  const totalWins = games.filter((game) => game.result === "Victory").length;
+  const totalWins = games.filter((game) => {
+    if (trackedNames.size === 0) {
+      return game.result === "Victory";
+    }
+    const trackedPlayers = game.players.filter(isTrackedPlayer);
+    return trackedPlayers.length > 0 && trackedPlayers.every((player) => player.won);
+  }).length;
   const totalDuration = games.reduce((sum, game) => sum + game.durationSeconds, 0);
   const averageGameLength = totalDuration / Math.max(games.length, 1);
   const topFragger = totals[0];
@@ -387,12 +476,12 @@ function renderOverview(games, totals) {
     {
       label: "Games loaded",
       value: formatNumber(games.length),
-      detail: `${formatNumber(totalWins)} wins across all eligible records`
+      detail: trackedNames.size ? `${formatNumber(totalWins)} wins for tracked players` : `${formatNumber(totalWins)} wins across all eligible records`
     },
     {
-      label: "Unique players",
-      value: formatNumber(totalPlayers),
-      detail: "De-duplicated by Riot ID game name"
+      label: "Players shown",
+      value: formatNumber(totals.length),
+      detail: "Counted by Riot ID game name"
     },
     {
       label: "Avg. match length",
@@ -415,14 +504,14 @@ function renderOverview(games, totals) {
   `).join("");
 }
 
-function renderTotals(totals) {
+function renderTotals(totals, hasGames) {
   if (totals.length === 0) {
     elements.totalsTableBody.innerHTML = `
       <tr>
         <td colspan="13">
           <div class="empty-state">
             <h3>No cumulative stats yet</h3>
-            <p>Load match files to compute totals and per-game averages.</p>
+            <p>${hasGames ? "The tracked players do not appear in the loaded games." : "Load match files to compute totals and per-game averages."}</p>
           </div>
         </td>
       </tr>
@@ -464,7 +553,7 @@ function renderTotals(totals) {
   `).join("");
 }
 
-function getMatchTeams(players) {
+function getMatchTeams(players, trackedNames) {
   const teams = new Map();
 
   for (const player of players) {
@@ -484,6 +573,7 @@ function getMatchTeams(players) {
     id,
     label: MATCH_TEAM_LABELS.get(id) ?? (id ? `Team ${id}` : "Unassigned players"),
     roster,
+    hasTrackedPlayer: Boolean(id) && roster.some((player) => trackedNames.has(player.name.trim().toLowerCase())),
     won: Boolean(id) && roster.some((player) => player.won)
   }));
 }
@@ -532,12 +622,15 @@ function renderMatchComparison(teams) {
   `;
 }
 
-function renderMatchRoster(team) {
+function renderMatchRoster(team, role) {
   return `
     <section class="match-team${team.won ? " match-team-winner" : ""}">
       <header class="match-team-header">
         <h4>${escapeHtml(team.label)}</h4>
-        ${team.won ? '<span class="pill pill-win">Winner</span>' : ""}
+        <div class="match-team-badges">
+          ${role ? `<span class="pill pill-neutral">${role}</span>` : ""}
+          ${team.won ? '<span class="pill pill-win">Winner</span>' : ""}
+        </div>
       </header>
       <div class="participants-list">
         ${team.roster.map((player) => `
@@ -557,7 +650,7 @@ function renderMatchRoster(team) {
   `;
 }
 
-function renderGames(games) {
+function renderGames(games, trackedNames) {
   const cardGames = sortGamesBySourceGameIdDesc(games);
 
   if (cardGames.length === 0) {
@@ -566,8 +659,10 @@ function renderGames(games) {
   }
 
   elements.gamesContainer.innerHTML = cardGames.map((game, index) => {
-    const teams = getMatchTeams(game.players);
+    const teams = getMatchTeams(game.players, trackedNames);
     const isUnassigned = teams.length === 1 && !teams[0].id;
+    const hasOpponent = teams.length === 2 && teams.every((team) => team.id) &&
+      teams.filter((team) => team.hasTrackedPlayer).length === 1;
     return `
       <article class="game-card">
         <header class="game-card-header">
@@ -582,7 +677,7 @@ function renderGames(games) {
         </header>
         ${renderMatchComparison(teams)}
         <div class="match-teams">
-          ${teams.map(renderMatchRoster).join("")}
+          ${teams.map((team) => renderMatchRoster(team, hasOpponent ? (team.hasTrackedPlayer ? "Your team" : "Opponents") : "")).join("")}
         </div>
       </article>
     `;
@@ -628,20 +723,20 @@ function buildChartSeries(games, statKey) {
 
 function renderChart(games) {
   const chartGames = sortGamesBySourceGameIdAsc(games);
+  const statConfig = CHART_STATS.find((stat) => stat.key === state.activeChartStat) || CHART_STATS[0];
+  const series = buildChartSeries(chartGames, statConfig.key);
 
-  if (games.length === 0) {
+  if (series.length === 0) {
     elements.chartStage.innerHTML = `
       <div class="empty-state">
         <h3>No chart data yet</h3>
-        <p>Load match files to compare player trends over time.</p>
+        <p>${games.length ? "The tracked players do not appear in the loaded games." : "Load match files to compare player trends over time."}</p>
       </div>
     `;
     elements.chartLegend.innerHTML = "";
     return;
   }
 
-  const statConfig = CHART_STATS.find((stat) => stat.key === state.activeChartStat) || CHART_STATS[0];
-  const series = buildChartSeries(chartGames, statConfig.key);
   const allValues = series.flatMap((player) => player.points.map((point) => point.y).filter((value) => value !== null));
   const maxValue = Math.max(...allValues, 0);
   const yMax = niceMax(maxValue);
@@ -797,6 +892,12 @@ function renderChart(games) {
 }
 
 function renderTabs() {
+  const viewChanged = elements.appScroll.dataset.view !== state.activeView;
+  if (viewChanged) {
+    elements.gamesContainer.scrollTop = 0;
+    elements.appScroll.dataset.view = state.activeView;
+  }
+
   elements.tabButtons.forEach((button) => {
     const isActive = button.dataset.view === state.activeView;
     button.classList.toggle("is-active", isActive);
@@ -807,10 +908,17 @@ function renderTabs() {
     const isActive = panel.dataset.view === state.activeView;
     panel.hidden = !isActive;
     panel.classList.toggle("is-active", isActive);
+    if (viewChanged) {
+      if (isActive) {
+        fade(panel, 0.45);
+      } else {
+        panel.getAnimations().forEach((animation) => animation.cancel());
+      }
+    }
   });
 }
 
-function renderChartStatButtons() {
+function renderChartStatButtons(games) {
   elements.chartStatButtons.innerHTML = CHART_STATS.map((stat) => `
     <button
       class="chart-stat-button ${stat.key === state.activeChartStat ? "is-active" : ""}"
@@ -821,34 +929,41 @@ function renderChartStatButtons() {
     </button>
   `).join("");
 
-  [...elements.chartStatButtons.querySelectorAll(".chart-stat-button")].forEach((button) => {
+  const buttons = [...elements.chartStatButtons.querySelectorAll(".chart-stat-button")];
+  buttons.forEach((button) => {
     button.addEventListener("click", () => {
+      if (state.activeChartStat === button.dataset.statKey) {
+        return;
+      }
       state.activeChartStat = button.dataset.statKey;
-      renderChartStatButtons();
-      renderChart(state.games);
+      buttons.forEach((option) => option.classList.toggle("is-active", option === button));
+      renderChart(games);
+      fade(elements.chartStage, 0.55);
     });
   });
 }
 
 function render() {
-  const totals = aggregatePlayers(state.games);
+  const trackedNames = new Set((state.activeCollection?.trackedPlayers || []).map((name) => name.trim().toLowerCase()));
+  const isTrackedPlayer = (player) => trackedNames.size === 0 || trackedNames.has(player.name.trim().toLowerCase());
+  const playerGames = trackedNames.size === 0 ? state.games : state.games.map((game) => ({
+    ...game,
+    players: game.players.filter(isTrackedPlayer)
+  }));
+  const totals = aggregatePlayers(playerGames);
   renderCollectionSelect();
-  renderChartStatButtons();
-  renderOverview(state.games, totals);
-  renderTotals(totals);
-  renderChart(state.games);
-  renderGames(state.games);
+  renderChartStatButtons(playerGames);
+  renderOverview(state.games, totals, trackedNames, isTrackedPlayer);
+  renderTotals(totals, state.games.length > 0);
+  renderChart(playerGames);
+  renderGames(state.games, trackedNames);
   renderTabs();
 }
 
 function setStatus(message, isError = false) {
   elements.statusText.textContent = message;
+  elements.statusText.title = message;
   elements.statusText.style.color = isError ? "var(--loss)" : "var(--muted)";
-}
-
-function replaceGames(games, sourceLabel) {
-  state.games = [...games];
-  render();
 }
 
 function addGames(games, sourceLabel) {
@@ -910,8 +1025,6 @@ async function loadBundledGames() {
       return;
     }
 
-    state.activeCollection = selectedCollection;
-    render();
     await loadCollectionGames(selectedCollection);
   } catch (error) {
     setStatus(`Could not load collection index from ${COLLECTION_INDEX_PATH}. ${error.message}`, true);
@@ -919,42 +1032,61 @@ async function loadBundledGames() {
 }
 
 async function loadCollectionGames(collection, shouldUpdateHash = true) {
-  const loadedGames = [];
+  collectionLoad?.abort();
+  collectionLoad = new AbortController();
+  const { signal } = collectionLoad;
+  const collectionChanged = state.activeCollection?.collection !== collection.collection;
+  pendingCollection = collection;
+  if (shouldUpdateHash) {
+    setCollectionHash(collection.collection, !state.activeCollection && !window.location.hash);
+  }
+  renderCollectionSelect();
+  setStatus(`Loading ${collection.collection}…`);
 
+  let loadedGames;
   try {
-    for (const entry of collection.files || []) {
-      const relativeFile = typeof entry === "string" ? entry : entry?.file;
-      if (!relativeFile) {
-        continue;
-      }
-
+    const files = (collection.files || []).map((entry) => typeof entry === "string" ? entry : entry?.file).filter(Boolean);
+    const gamesByFile = await Promise.all(files.map(async (relativeFile) => {
       const fileUrl = new URL(`data/${collection.directory}/${relativeFile}`, assetBaseUrl);
-      const response = await fetch(fileUrl, { cache: "no-store" });
+      const response = await fetch(fileUrl, { cache: "no-store", signal });
       if (!response.ok) {
         throw new Error(`Failed loading ${relativeFile}: status ${response.status}`);
       }
 
       const payload = await response.json();
-      const games = filterEligibleGames(extractGames(payload, relativeFile));
-      loadedGames.push(...games);
-    }
+      return filterEligibleGames(extractGames(payload, relativeFile));
+    }));
+    loadedGames = gamesByFile.flat();
   } catch (error) {
-    setStatus(`Could not load collection "${collection.collection}". ${error.message}`, true);
+    if (!signal.aborted) {
+      pendingCollection = null;
+      collectionLoad.abort();
+      setCollectionHash(state.activeCollection?.collection, true);
+      setStatus(`Could not load collection "${collection.collection}". ${error.message}`, true);
+    }
     return;
   }
 
-  if (loadedGames.length === 0) {
-    state.games = [];
-    render();
-    setStatus(`Collection "${collection.collection}" does not contain any eligible games.`, true);
+  if (signal.aborted) {
     return;
   }
 
+  pendingCollection = null;
   state.activeCollection = collection;
-  if (shouldUpdateHash) {
-    setCollectionHash(collection.collection);
+  state.games = loadedGames;
+  if (collectionChanged) {
+    elements.gamesContainer.scrollTop = 0;
   }
-  replaceGames(loadedGames, collection.collection);
+  updateCollectionBackground(collection);
+  render();
+  fade(elements.overviewCards, 0.5);
+  fade(elements.viewPanels.find((panel) => !panel.hidden), 0.45);
+  if (loadedGames.length === 0) {
+    setStatus(`Collection "${collection.collection}" does not contain any eligible games.`, true);
+  } else {
+    const gameLabel = loadedGames.length === 1 ? "game" : "games";
+    setStatus(`Loaded ${loadedGames.length} ${gameLabel} from ${collection.collection}.`);
+  }
 }
 
 function installDropzone() {
@@ -982,8 +1114,9 @@ elements.fileInput.addEventListener("change", (event) => {
 });
 
 elements.reloadBundledButton.addEventListener("click", () => {
-  if (state.activeCollection) {
-    loadCollectionGames(state.activeCollection);
+  const collection = pendingCollection || state.activeCollection;
+  if (collection) {
+    loadCollectionGames(collection);
     return;
   }
 
@@ -991,6 +1124,9 @@ elements.reloadBundledButton.addEventListener("click", () => {
 });
 
 elements.clearButton.addEventListener("click", () => {
+  collectionLoad?.abort();
+  pendingCollection = null;
+  setCollectionHash(state.activeCollection?.collection, true);
   state.games = [];
   render();
   setStatus("Cleared all loaded game data.");
@@ -1006,12 +1142,10 @@ elements.tabButtons.forEach((button) => {
 window.addEventListener("hashchange", () => {
   const requestedCollectionName = getCollectionHashValue();
   const nextCollection = state.collections.find((entry) => entry.collection === requestedCollectionName);
-  if (!nextCollection || nextCollection.collection === state.activeCollection?.collection) {
+  if (!nextCollection || nextCollection.collection === (pendingCollection || state.activeCollection)?.collection) {
     return;
   }
 
-  state.activeCollection = nextCollection;
-  renderCollectionSelect();
   loadCollectionGames(nextCollection, false);
 });
 
@@ -1031,5 +1165,6 @@ document.addEventListener("click", (event) => {
 });
 
 installDropzone();
+installBackdropParallax();
 render();
 loadBundledGames();
